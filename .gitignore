@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+eval/results/logs/
+eval/results/RUN_STATUS.txt
