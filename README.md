@@ -4,6 +4,20 @@
 `ggml-org/GLM-OCR-GGUF/GLM-OCR-Q8_0.gguf:latest`）跑 TC-STR 場景文字辨識資料集，
 用 EM / CM(Containment) / ANLS / F1 四個指標評分，並產生一頁式 HTML 報告。
 
+## 檔案說明
+
+| 檔案 | 做什麼 |
+|---|---|
+| [`config.py`](eval/config.py) | **所有設定集中在這裡**：`MODELS` 是三個模型的清單（Ollama tag、以及個別的 `options` 覆蓋參數，例如 glm_ocr 用的 `repeat_penalty`/`num_predict`）；**`OCR_PROMPT` 就是下給 VLM 的提示詞**；`ANLS_THRESHOLD`、`TEXT_LEN_BUCKETS` 是評分/報告用的參數；還有資料集路徑（`TEST_LABELS`/`TRAIN_LABELS`/`IMAGES_DIR`）跟 `OLLAMA_HOST` |
+| [`metrics.py`](eval/metrics.py) | EM / CM(Containment Match) / ANLS / F1 四個指標的實際計算公式，`score_all()` 是入口 |
+| [`ollama_client.py`](eval/ollama_client.py) | 封裝呼叫 Ollama `/api/generate` 的細節：把圖片轉 base64、組 payload、送出 prompt + 圖片、回傳模型的原始文字回應 |
+| [`postprocess.py`](eval/postprocess.py) | **清理模型原始輸出的雜訊**：去掉模型把系統 prompt 複誦回來的部分、`<think>` 推理標籤、HTML 標籤（`<div>`/`<p>`/`<br/>`）、JSON 陣列格式（`["字"]` 或 `[{"text":"字"}]`）、code fence、重複字元迴圈等，把「答案本身」跟「格式雜訊」分開。這一步直接影響評分結果，細節見下面「為什麼結果可能跟別人不同」 |
+| [`run_eval.py`](eval/run_eval.py) | **主要執行腳本**：讀 `test_labels.txt` → 依序呼叫三個模型（圖片 + `OCR_PROMPT`）→ 用 `postprocess.py` 清理輸出 → 用 `metrics.py` 算分 → 逐行寫進 `results/raw_results.csv`（同時保留清理前/後兩個版本：`prediction_raw` 跟 `prediction`） |
+| [`build_report.py`](eval/build_report.py) | 讀取 `results/raw_results.csv`，彙總統計、畫 SVG 長條圖，輸出成自包含的 `results/report.html`（圖片以 base64 內嵌） |
+| [`run_until_done.sh`](eval/run_until_done.sh) | 長時間背景執行用：依序把每個模型跑到目標筆數，斷線/Ollama掛掉會自動重試，適合用 tmux 丟著跑整個資料集 |
+| `requirements.txt` | Python 套件依賴（`requests`、`pandas`、`pillow`） |
+| `results/` | 輸出資料夾：`raw_results.csv`（逐筆評分結果，含原始+清理後輸出）、`report.html`（最終報告）、`RUN_STATUS.txt`/`logs/`（`run_until_done.sh` 的執行進度，不進版控） |
+
 ## 1. 複製到 server
 
 在**已經跑著 Ollama、三個模型都 `ollama pull` 好**的機器上執行（例如你目前的
@@ -111,6 +125,34 @@ scp ubuntu@<server-ip>:~/Test_OCR/TC-STR/eval/results/report.html .
 | CM | Containment Match：預測文字完整包含 ground truth 就計 1 分 |
 | ANLS | 1 − 正規化編輯距離，低於 0.5 門檻當 0 分（DocVQA 慣例） |
 | F1 | 字元級 precision/recall 的調和平均 |
+
+## 為什麼跟別人的結果可能不一樣
+
+同一個模型、同一份 TC-STR 資料集，不同人跑出來的 EM/CM/ANLS/F1 還是可能差距很大
+（例如同一個 `glm_ocr`，實測過 ANLS 從 0% 到 55% 都出現過）。常見原因，按影響程度排序：
+
+1. **後處理清理程度不同（影響最大）**：[`postprocess.py`](eval/postprocess.py) 會把模型輸出裡的
+   格式雜訊（複誦的 prompt、HTML 標籤、JSON 包裝、重複字元迴圈）清掉才拿去算分。如果對方是直接拿
+   Ollama 的原始回應去比對，同一個模型的 EM/ANLS 會被這些雜訊拖得非常低，但 CM/F1 相對沒差那麼多
+   （因為 CM 只看有沒有包含、F1 只看字元重疊，對雜訊比較不敏感，EM 要求完全一致、ANLS 對編輯距離
+   敏感，雜訊一多分數就崩）。**如果兩邊分數呈現「EM/ANLS 差很多、CM/F1 差不多」的形狀，八九不離十
+   是這個原因**。`raw_results.csv` 裡同時留了 `prediction_raw`（清理前）跟 `prediction`（清理後）
+   兩欄，可以直接對照。
+2. **Prompt 措辭不同**：[`config.py`](eval/config.py) 的 `OCR_PROMPT` 字句會直接影響模型輸出的風格
+   （例如要不要輸出 HTML/JSON、要不要加解釋）。用詞不同，模型行為可能整個不一樣。
+3. **Ollama 呼叫參數不同**：`temperature`、`repeat_penalty`、`num_predict` 這些在 `config.py` 的
+   `MODELS[*]["options"]` 裡設定。`glm_ocr` 這個量化模型特別容易陷入重複輸出迴圈，這裡已經調高
+   `repeat_penalty`；如果對方用預設參數，同一個模型的行為可能差很多。
+4. **指標實作細節不同**：ANLS 的門檻是不是都用 0.5？F1 是字元級還是詞級（中文沒有分詞邊界，這裡固定
+   用字元級）？EM/CM 有沒有做大小寫、全半形、標點正規化？這些沒有統一標準，不同實作結果本來就會有落差。
+5. **評測樣本數/split 不同**：確認兩邊是不是都跑完整的 `test_labels.txt`（3706 筆），不是子集合，也
+   不是誤用了 `train_labels.txt`。
+6. **模型量化版本/推論後端版本不同**：即使 Ollama tag 名稱一樣，不同時間 pull 下來的權重、不同版本的
+   llama.cpp 後端，數值計算細節仍可能有些微差異（通常影響不大，但無法完全排除）。
+
+要精確定位差異，最快的方法是拿幾筆「一邊算對、一邊算錯」的同一張圖，比對雙方的 `prediction_raw`
+（原始輸出）是否相同——如果原始輸出一樣、只是清理後的 `prediction` 不同，就是第 1 點；如果連
+`prediction_raw` 都不一樣，就要往第 2、3、6 點找。
 
 ## 注意事項
 
