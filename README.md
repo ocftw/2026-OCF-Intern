@@ -1,3 +1,8 @@
+# Sixhuang branch
+
+此 branch 新增 Sixhuang 的 OCR benchmark 程式，請從
+[`Sixhuang/README.md`](Sixhuang/README.md) 開始。原有的 `eval/` 內容保持不變。
+
 # TC-STR OCR 模型評估腳本
 
 用 Ollama 上的三個模型（`qwen2.5vl:3b`、`chandra-ocr-2:latest`、

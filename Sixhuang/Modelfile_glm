@@ -1,0 +1,9 @@
+FROM ./models/GLM-OCR-Q8_0.gguf
+PARAMETER mmproj ./models/mmproj-GLM-OCR-Q8_0.gguf
+PARAMETER temperature 0
+PARAMETER top_p 0.00001
+PARAMETER top_k 1
+TEMPLATE """[gMASK]<sop>{{ if .System }}<|system|>
+{{ .System }}{{ end }}<|user|>
+{{ .Prompt }}{{ if .Response }}<|assistant|>
+{{ .Response }}{{ end }}"""
