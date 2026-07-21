@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-07-19T19:21:45+00:00",
+  "model": "ggml-org/GLM-OCR-GGUF/GLM-OCR-Q8_0.gguf:latest",
+  "host": "http://localhost:11434",
+  "labels": "/home/hyslchs/20260707_Ollama_test/TC-STR/test_labels.txt",
+  "images_dir": "/home/hyslchs/20260707_Ollama_test/TC-STR/images",
+  "sample_count": 3706,
+  "dataset_fingerprint": "01b54a9a81669d36ff951963be8c263a54beb40084071d5b47a72adbac3e1362",
+  "timeout": 180,
+  "max_retries": 3,
+  "inference_variants": {
+    "baseline": {
+      "label": "Aligned baseline",
+      "description": "合作者完整設定：/api/generate、長 prompt、repeat_penalty=1.6、num_predict=80。",
+      "endpoint": "/api/generate",
+      "prompt": "你是一個專業的OCR文字辨識引擎。請仔細觀察圖片，只輸出圖片中看到的文字內容（繁體中文為主，若同時有英文或數字也一併輸出），只回傳純文字本身，不要輸出HTML標籤、Markdown或JSON等任何格式化標記，不要加任何解釋、前綴或後綴、標點符號以外的內容，不要翻譯，不要加引號。如果部分文字模糊、傾斜或被遮擋，也要盡量根據字形推斷最可能的字。",
+      "prompt_sha256": "70777f7daa7190039f1275784007a853e4c3851abb540cd994d467896a97f7b0",
+      "options": {
+        "temperature": 0,
+        "repeat_penalty": 1.6,
+        "num_predict": 80
+      }
+    },
+    "endpoint_chat": {
+      "label": "Endpoint: /api/chat",
+      "description": "只把 /api/generate 改成 /api/chat；prompt 與 generation options 不變。",
+      "endpoint": "/api/chat",
+      "prompt": "你是一個專業的OCR文字辨識引擎。請仔細觀察圖片，只輸出圖片中看到的文字內容（繁體中文為主，若同時有英文或數字也一併輸出），只回傳純文字本身，不要輸出HTML標籤、Markdown或JSON等任何格式化標記，不要加任何解釋、前綴或後綴、標點符號以外的內容，不要翻譯，不要加引號。如果部分文字模糊、傾斜或被遮擋，也要盡量根據字形推斷最可能的字。",
+      "prompt_sha256": "70777f7daa7190039f1275784007a853e4c3851abb540cd994d467896a97f7b0",
+      "options": {
+        "temperature": 0,
+        "repeat_penalty": 1.6,
+        "num_predict": 80
+      }
+    },
+    "short_prompt": {
+      "label": "Prompt: Sixhuang short",
+      "description": "只把 171 字 aligned prompt 改成 Sixhuang 39 字短 prompt。",
+      "endpoint": "/api/generate",
+      "prompt": "請辨識圖片中的文字。只輸出辨識出的文字，不要有任何其他贅字、標點、說明或格式。",
+      "prompt_sha256": "3d47198b5c58773ae4f03c7d9e0598429c18de7adf7549f6feb6947445f401de",
+      "options": {
+        "temperature": 0,
+        "repeat_penalty": 1.6,
+        "num_predict": 80
+      }
+    },
+    "no_repeat_penalty": {
+      "label": "No repeat_penalty",
+      "description": "只移除 repeat_penalty=1.6；保留 temperature=0、num_predict=80。",
+      "endpoint": "/api/generate",
+      "prompt": "你是一個專業的OCR文字辨識引擎。請仔細觀察圖片，只輸出圖片中看到的文字內容（繁體中文為主，若同時有英文或數字也一併輸出），只回傳純文字本身，不要輸出HTML標籤、Markdown或JSON等任何格式化標記，不要加任何解釋、前綴或後綴、標點符號以外的內容，不要翻譯，不要加引號。如果部分文字模糊、傾斜或被遮擋，也要盡量根據字形推斷最可能的字。",
+      "prompt_sha256": "70777f7daa7190039f1275784007a853e4c3851abb540cd994d467896a97f7b0",
+      "options": {
+        "temperature": 0,
+        "num_predict": 80
+      }
+    },
+    "num_predict_25": {
+      "label": "num_predict: 25",
+      "description": "只把 num_predict=80 改成 25；其他設定不變。",
+      "endpoint": "/api/generate",
+      "prompt": "你是一個專業的OCR文字辨識引擎。請仔細觀察圖片，只輸出圖片中看到的文字內容（繁體中文為主，若同時有英文或數字也一併輸出），只回傳純文字本身，不要輸出HTML標籤、Markdown或JSON等任何格式化標記，不要加任何解釋、前綴或後綴、標點符號以外的內容，不要翻譯，不要加引號。如果部分文字模糊、傾斜或被遮擋，也要盡量根據字形推斷最可能的字。",
+      "prompt_sha256": "70777f7daa7190039f1275784007a853e4c3851abb540cd994d467896a97f7b0",
+      "options": {
+        "temperature": 0,
+        "repeat_penalty": 1.6,
+        "num_predict": 25
+      }
+    }
+  },
+  "derived_variants": {
+    "minimal_postprocess": {
+      "label": "Minimal postprocess",
+      "description": "不重跑模型；只把 baseline raw response 改用 Sixhuang 的最小後處理。"
+    },
+    "sixhuang_scorer": {
+      "label": "Sixhuang scorer",
+      "description": "不重跑模型；保留 baseline processed prediction，只改用 Sixhuang scorer。"
+    }
+  },
+  "signature": "137aa4b50805d004d3823e76ab1c6b8eace6d74b680ef1a1483ba2c8d325af88"
+}

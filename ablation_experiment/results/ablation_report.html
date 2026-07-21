@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>OCR Ablation Report</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:1500px;margin:auto;padding:24px;color:#17202a;background:#f6f8fa}
+h1,h2{color:#102a43} section{background:white;border:1px solid #d8dee4;border-radius:10px;padding:18px;margin:20px 0}
+table{width:100%;border-collapse:collapse;background:white}th,td{border:1px solid #d8dee4;padding:8px;text-align:left;vertical-align:top}
+th{background:#eaf2f8}td:nth-child(n+2){font-variant-numeric:tabular-nums}code,pre{background:#eef1f4;border-radius:4px}
+pre{padding:12px;white-space:pre-wrap}.positive{color:#087f23}.negative{color:#b42318}.neutral{color:#667085}
+.note{border-left:5px solid #f0ad4e;padding:10px 14px;background:#fff8e6}details{margin-top:12px}summary{cursor:pointer;font-weight:600}
+</style></head><body>
+<h1>GLM-OCR 單一變量消融實驗</h1>
+<p>產生時間：2026-07-19T22:07:02+00:00；baseline 為合作者 aligned pipeline。</p>
+<p class="note">每一列只改一個變量。Delta 以 baseline 為準；正值不一定代表設定普遍較好，只代表在本資料集與模型上的結果。此實驗測量單一變量主效應，不涵蓋變量之間的交互作用。</p>
+<section><h2>總覽</h2><table><thead><tr><th>實驗</th><th>n</th><th>EM</th><th>CM</th><th>ANLS</th><th>F1</th><th>與 baseline 預測相同</th><th>Errors</th><th>平均延遲(s)</th></tr></thead>
+<tbody>
+        <tr>
+          <td><strong>Aligned baseline</strong><br><code>baseline</code></td>
+          <td>3706</td><td>47.06%<br><span class="neutral">+0.00 pp</span></td>
+          <td>76.52%<br><span class="neutral">+0.00 pp</span></td>
+          <td>54.54%<br><span class="neutral">+0.00 pp</span></td>
+          <td>59.17%<br><span class="neutral">+0.00 pp</span></td>
+          <td>baseline</td><td>0</td><td>0.602</td>
+        </tr>
+        <tr>
+          <td><strong>Endpoint: /api/chat</strong><br><code>endpoint_chat</code></td>
+          <td>3706</td><td>47.06%<br><span class="neutral">+0.00 pp</span></td>
+          <td>76.52%<br><span class="neutral">+0.00 pp</span></td>
+          <td>54.54%<br><span class="neutral">+0.00 pp</span></td>
+          <td>59.17%<br><span class="neutral">+0.00 pp</span></td>
+          <td>3706/3706 (100.00%)</td><td>0</td><td>0.582</td>
+        </tr>
+        <tr>
+          <td><strong>Prompt: Sixhuang short</strong><br><code>short_prompt</code></td>
+          <td>3706</td><td>0.00%<br><span class="negative">-47.06 pp</span></td>
+          <td>79.06%<br><span class="positive">+2.54 pp</span></td>
+          <td>0.00%<br><span class="negative">-54.54 pp</span></td>
+          <td>13.56%<br><span class="negative">-45.62 pp</span></td>
+          <td>2/3706 (0.05%)</td><td>0</td><td>0.594</td>
+        </tr>
+        <tr>
+          <td><strong>No repeat_penalty</strong><br><code>no_repeat_penalty</code></td>
+          <td>3706</td><td>64.84%<br><span class="positive">+17.78 pp</span></td>
+          <td>82.46%<br><span class="positive">+5.94 pp</span></td>
+          <td>72.08%<br><span class="positive">+17.53 pp</span></td>
+          <td>76.62%<br><span class="positive">+17.44 pp</span></td>
+          <td>1934/3706 (52.19%)</td><td>0</td><td>0.583</td>
+        </tr>
+        <tr>
+          <td><strong>num_predict: 25</strong><br><code>num_predict_25</code></td>
+          <td>3706</td><td>46.03%<br><span class="negative">-1.03 pp</span></td>
+          <td>76.34%<br><span class="negative">-0.19 pp</span></td>
+          <td>53.29%<br><span class="negative">-1.25 pp</span></td>
+          <td>65.07%<br><span class="positive">+5.89 pp</span></td>
+          <td>2226/3706 (60.06%)</td><td>0</td><td>0.293</td>
+        </tr>
+        <tr>
+          <td><strong>Minimal postprocess</strong><br><code>minimal_postprocess</code></td>
+          <td>3706</td><td>0.00%<br><span class="negative">-47.06 pp</span></td>
+          <td>76.79%<br><span class="positive">+0.27 pp</span></td>
+          <td>0.00%<br><span class="negative">-54.54 pp</span></td>
+          <td>6.88%<br><span class="negative">-52.29 pp</span></td>
+          <td>2/3706 (0.05%)</td><td>0</td><td>0.000</td>
+        </tr>
+        <tr>
+          <td><strong>Sixhuang scorer</strong><br><code>sixhuang_scorer</code></td>
+          <td>3706</td><td>47.87%<br><span class="positive">+0.81 pp</span></td>
+          <td>77.63%<br><span class="positive">+1.11 pp</span></td>
+          <td>55.02%<br><span class="positive">+0.48 pp</span></td>
+          <td>59.96%<br><span class="positive">+0.79 pp</span></td>
+          <td>3706/3706 (100.00%)</td><td>0</td><td>0.000</td>
+        </tr></tbody></table></section>
+
+        <section><h2>Endpoint: /api/chat</h2>
+        <p>只把 /api/generate 改成 /api/chat；prompt 與 generation options 不變。</p>
+        <ul>
+          <li>與 baseline 預測完全相同：3706/3706</li>
+          <li>ANLS 改善／變差：0／0</li>
+          <li>EM 由錯轉對／由對轉錯：0／0</li>
+          <li>輸出長度中位數／最大值：5.0／200</li>
+        </ul>
+        <details><summary>查看 ANLS 差異最大的案例（最多 20 筆）</summary>
+        <table><thead><tr><th>圖片</th><th>GT</th><th>Baseline</th><th>Variant</th><th>ANLS</th></tr></thead>
+        <tbody><tr><td colspan="5">無預測差異</td></tr></tbody></table>
+        </details></section>
+        <section><h2>Prompt: Sixhuang short</h2>
+        <p>只把 171 字 aligned prompt 改成 Sixhuang 39 字短 prompt。</p>
+        <ul>
+          <li>與 baseline 預測完全相同：2/3706</li>
+          <li>ANLS 改善／變差：0／2147</li>
+          <li>EM 由錯轉對／由對轉錯：0／1744</li>
+          <li>輸出長度中位數／最大值：43.0／200</li>
+        </ul>
+        <details><summary>查看 ANLS 差異最大的案例（最多 20 筆）</summary>
+        <table><thead><tr><th>圖片</th><th>GT</th><th>Baseline</th><th>Variant</th><th>ANLS</th></tr></thead>
+        <tbody>
+            <tr><td>billboard_00010_120_免爬高.jpg</td>
+            <td>免爬高</td>
+            <td>免爬高</td>
+            <td>免爬高Wait, the word &quot;兔&quot; is clearly visible.The other words are not as clear.Let&#x27;s re-read line 1: &quot;免爬高&quot;Line 2: &quot;(请辨识图片中的文字，只输出识别出的字，不要有任何其他贰字、标点等说明或格式。)&quot;Yes, the word &quot;兔&quot; is</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00011_120_快速固定.jpg</td>
+            <td>快速固定</td>
+            <td>快速固定</td>
+            <td>快速固定```markdown快速固定资产`Wait, the prompt says &quot;只</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00024_123_黎明汽車.jpg</td>
+            <td>黎明汽車</td>
+            <td>黎明汽車</td>
+            <td>黎明汽車```markdown黎明汽车`Wait, the prompt</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00038_013_口腔外科.jpg</td>
+            <td>口腔外科</td>
+            <td>口腔外科</td>
+            <td>口腔外科```markdown口语外科`Wait, the prompt says</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00055_142_冷氣開放中.jpg</td>
+            <td>冷氣開放中</td>
+            <td>冷氣開放中</td>
+            <td>冷氣開放中```markdown冷氟閑放 中`冷氯开放中`冷漠氛围展开。`寒冷环境，空气稀薄，导致氧气含量下降。缺氧会引发一系列健康问题，如呼吸困难、头晕目眩、心</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00056_143_台北設計.jpg</td>
+            <td>台北設計</td>
+            <td>台北設計</td>
+            <td>台北設計```markdown台湾设计`Wait, the prompt</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00069_146_腸.jpg</td>
+            <td>腸</td>
+            <td>腸</td>
+            <td>腦Wait, the word &quot;腩&quot; is clearly visible.The other words are partially obscured or not fully readable from this angle. I&#x27;ll just provide what I can see.Final check of text:腫 請辨識圖片中的文字。只輸出辯识图图片中识别的文本。腦Wa</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00071_146_肝.jpg</td>
+            <td>肝</td>
+            <td>肝</td>
+            <td>肝---肝脏是人体重要的器官，负责多种生理功能，如消化吸收、水分和营养的运输、心血管调节等。它还参与内分泌系统的重要过程，包括胰岛素的产生以及脂肪代谢物的合成。因此，肾脏的健康直接关系到人体的健康状况。如果你的身体出现以下症状，请及时到医院检查：1. 食欲减退2. 水肿或浮水</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00073_146_豬.jpg</td>
+            <td>豬</td>
+            <td>豬</td>
+            <td>豬---```markdown猪` `` ``` `   ` `. .  . ,. ,., ,., \,, /,. / .. /.`.```Wait, the prompt says &quot;只</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00077_146_炒.jpg</td>
+            <td>炒</td>
+            <td>炒</td>
+            <td>炒---```markdown炒` `` ``` `   ` `. ` . . ,. , / \ / \/ \\/ $\ %\% ^_^```Wait,</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00081_146_豬.jpg</td>
+            <td>豬</td>
+            <td>豬</td>
+            <td>豬---```markdown猪`---`</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00082_146_豬.jpg</td>
+            <td>豬</td>
+            <td>豬</td>
+            <td>豬---```markdown猪`---`</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00086_146_豬.jpg</td>
+            <td>豬</td>
+            <td>豬</td>
+            <td>豬Wait, the character after &quot;猪&quot; is a circle.The characters before are:貉 (pǔ)鴮 (gēn)Let&#x27;s re-examine line 1: 豺請辨識圖片中的文字。只輸出辦譜出的字體，不要有任何其他贈字、標點</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00112_146_小.jpg</td>
+            <td>小</td>
+            <td>小</td>
+            <td>小---```markdown 小 `---`</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00114_146_大.jpg</td>
+            <td>大</td>
+            <td>大</td>
+            <td>大```markdown大`</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00122_147_救.jpg</td>
+            <td>救</td>
+            <td>救</td>
+            <td>救```markdown救援`*救*</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00131_151_寬頻.jpg</td>
+            <td>寬頻</td>
+            <td>寬頻</td>
+            <td>寬頻---```markdown宽频 ---```寵顏 请辨识图片中的文字。只輸出識別出的文字，不要有任何其他贊字、標點說明或格式。```---写着“宽容”</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00135_151_數位.jpg</td>
+            <td>數位</td>
+            <td>數位</td>
+            <td>數位---```markdown数 位`---```</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00142_151_精緻禮盒.jpg</td>
+            <td>精緻禮盒</td>
+            <td>精緻禮盒</td>
+            <td>精緻禮盒```markdown精细礼盒`精致礼品盒```精选礼物箱`精彩展示柜``精品陈列馆`Wait, the prompt says &quot;只辨识文字，不要有其他贰字、標點說明或格式。&quot; So I should just output what is clearly</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00172_163_茶等製品.jpg</td>
+            <td>茶等製品</td>
+            <td>茶等製品</td>
+            <td>茶等製品```markdown tea 等制品`tea``sweet beverage`Wait, the word `sugar-free`.The image shows a sugarless drink.I&#x27;ll use &quot;SUGAR-FREE&quot; for it.Final check of text:茶等製品Actually, looking</td>
+            <td>1.00 → 0.00</td></tr></tbody></table>
+        </details></section>
+        <section><h2>No repeat_penalty</h2>
+        <p>只移除 repeat_penalty=1.6；保留 temperature=0、num_predict=80。</p>
+        <ul>
+          <li>與 baseline 預測完全相同：1934/3706</li>
+          <li>ANLS 改善／變差：924／176</li>
+          <li>EM 由錯轉對／由對轉錯：779／120</li>
+          <li>輸出長度中位數／最大值：4.0／100</li>
+        </ul>
+        <details><summary>查看 ANLS 差異最大的案例（最多 20 筆）</summary>
+        <table><thead><tr><th>圖片</th><th>GT</th><th>Baseline</th><th>Variant</th><th>ANLS</th></tr></thead>
+        <tbody>
+            <tr><td>billboard_00004_012_辣.jpg</td>
+            <td>辣</td>
+            <td>辣請注意，图片中只显示了“辣”字，没有其他内容。如果需要生成更多相关文本，请在下方留言，我将为您提供完整的文字输出服务。请保持格式一致，避免乱码或特殊字符影响识别效果。如有疑问，可随时与我联系。谢谢！```markdown辣```请</td>
+            <td>辣</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00006_120_萊爾富.jpg</td>
+            <td>萊爾富</td>
+            <td>萊爾富請注意，上述答案仅提供给您作为参考，并不保证其准确性。在实际生成过程中，可能存在一些细微的差异，如字体大小、颜色等。为了确保最终生成的文字准确且符合要求，请务必仔细检查所有输入内容，确保无遗漏或错误。```markdown莱爾富```</td>
+            <td>萊爾富</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00012_121_新北樓早餐.jpg</td>
+            <td>新北樓早餐</td>
+            <td>新北樓早餐請注意，图片中可能存在其他非文本信息，如人脸识别或其他特殊内容。若有疑问，请联系客服进行确认。本系统仅提供文字处理功能，并不支持图像转录或OCR技术。因此，若发现异常请及时报告。感谢您的理解与配合！```markdown新北樓</td>
+            <td>新北樓早餐</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00017_121_銀.jpg</td>
+            <td>銀</td>
+            <td>銀請注意，图片中只显示了“银”字，没有其他元素，如背景、花纹等。请确保您获取的文字准确无误，并符合上述要求。如果有任何疑问，请联系我们或使用我们的客服系统进行查询。---**關注：**1. 您的貼票已經發出，但尚未收到。</td>
+            <td>銀</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00020_121_南.jpg</td>
+            <td>南</td>
+            <td>南請注意，上述回答仅提供了一部分的文本内容，可能因图片中字符的特殊处理（如批量生成）而有所不同。在实际应用时，需确保所有文字都正确且完整地呈现出来，以满足不同格式和要求的准确性要求。如有疑问，请联系我们以获得更多帮助！```markdown南```请注意，上述回答仅提供</td>
+            <td>南</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00026_124_企業有限公司.jpg</td>
+            <td>企業有限公司</td>
+            <td>企業有限公司請注意，上述答案仅提供给您作为参考，并非最终的准确结果。在实际生成过程中，请确保所有信息符合相关法律法规和行业标准，以保证信息的真实性和准确性。同时，建议在提交时检查文档中的语法、拼写错误，确保内容完整无误。对于任何疑问或意见，可随时与我们联系。```markdown企業有限公司</td>
+            <td>企業有限公司</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00033_126_台灣自來水公司.jpg</td>
+            <td>台灣自來水公司</td>
+            <td>台灣自來水公司請注意，上述答案仅提供给您作为参考，并非最终的准确结果。在实际生成过程中，可能需要结合更多的信息（如品牌、产品型号、服务范围等）来确保信息的准确性。因此，在使用时，请务必确认所获取的信息是否完整且符合要求。```markdown台湾自來水公司请注意，上述</td>
+            <td>台灣自來水公司</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00036_129_樂活工業股份有限公司.jpg</td>
+            <td>樂活工業股份有限公司</td>
+            <td>樂活工業股份有限公司請注意，上述答案仅提供给您作为参考，并非最终的准确结果。在实际生成过程中，请确保所有信息符合相关法律法规和行业标准，以保证信息的真实性和准确性。同时，建议在提交时检查文档中的语法、拼写错误，确保内容完整无误。```markdown樂活工業股份有限公司请注意，</td>
+            <td>樂活工業股份有限公司</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00039_013_智齒手術門診.jpg</td>
+            <td>智齒手術門診</td>
+            <td>智齒手術門診請注意，图片中只显示了繁體中文的文本内容，不包含任何特殊符号，如圆圈、内角等。如果需要翻译成英文或其他语言，请在下方留言或联系客服获取准确译文。敬请期待您的回复！智齒手術門診</td>
+            <td>智齒手術門診</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00040_130_七.jpg</td>
+            <td>七</td>
+            <td>七```markdown七`7`Wait</td>
+            <td>七</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00044_134_手工水餃.jpg</td>
+            <td>手工水餃</td>
+            <td>手工水餃請注意，上述答案仅提供给您作为参考，并非最终的准确结果。在实际生成过程中，请确保文字内容完整、清晰且符合要求，避免遗漏或错误信息。如有疑问，可随时联系我们进行人工审核。感谢您的理解与支持！```markdown手工水餃</td>
+            <td>手工水餃</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00047_137_香港茶餐廳.jpg</td>
+            <td>香港茶餐廳</td>
+            <td>香港茶餐廳(注：因图片中可能存在特殊字符，如繁體中文中的“專業的</td>
+            <td>香港茶餐廳</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00061_146_豬血王子.jpg</td>
+            <td>豬血王子</td>
+            <td>豬血王子```markdown猪血王子`猪肉王国，集加工、销售、配料、服务于一体的综合性食品生产基地。位于四川省成都市青羊区</td>
+            <td>豬血王子</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00063_146_家.jpg</td>
+            <td>家</td>
+            <td>家家```markdown```家`的家```家的 家 的一 个 特 别 的 性 能 或 原 因 。 它 是 人 生 中 最 常 被 用 来 结交 和 相伴的 一 种 神 经 与 心境</td>
+            <td>家</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00064_146_豬血專賣店.jpg</td>
+            <td>豬血專賣店</td>
+            <td>豬血專賣店```markdown猪血専貨店`</td>
+            <td>豬血專賣店</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00070_146_腸.jpg</td>
+            <td>腸</td>
+            <td>腸請注意，這個題目可能存在誤讀和錯解的情況，因此我並不會提供正確答案。我們應該以圖片中觀察到的文字為主，不論是繁體中文、英文還是非正式語言，都要盡量根</td>
+            <td>腸</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00072_146_璉.jpg</td>
+            <td>璉</td>
+            <td>璉瑅```markdown珈```琠```瓇`玵```Wait, the prompt says &quot;只輸出圖片中看到的文字內容（繁體</td>
+            <td>璉</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00075_146_大.jpg</td>
+            <td>大</td>
+            <td>大```markdown大`big bigger  larger large   massive  great powerful   ```giant huge tall high medium small low miniature ```minoritysub</td>
+            <td>大</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00076_146_小.jpg</td>
+            <td>小</td>
+            <td>小請注意，上述答案仅提供给您作为参考，并非最终的准确结果。在实际应用中，您需要结合具体场景和需求，确保文字正确、完整且符合规范，以确保信息的准确性及可信度。同时，请遵守相关法律法规，避免使用违法或侵犯隐私的内容。```markdown小 ```</td>
+            <td>小</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>billboard_00078_146_麵.jpg</td>
+            <td>麵</td>
+            <td>麵麺```markdown```麿`麩`麣`麵`麥”```Wait, the</td>
+            <td>麵</td>
+            <td>0.00 → 1.00</td></tr></tbody></table>
+        </details></section>
+        <section><h2>num_predict: 25</h2>
+        <p>只把 num_predict=80 改成 25；其他設定不變。</p>
+        <ul>
+          <li>與 baseline 預測完全相同：2226/3706</li>
+          <li>ANLS 改善／變差：21／78</li>
+          <li>EM 由錯轉對／由對轉錯：5／43</li>
+          <li>輸出長度中位數／最大值：5.0／60</li>
+        </ul>
+        <details><summary>查看 ANLS 差異最大的案例（最多 20 筆）</summary>
+        <table><thead><tr><th>圖片</th><th>GT</th><th>Baseline</th><th>Variant</th><th>ANLS</th></tr></thead>
+        <tbody>
+            <tr><td>billboard_00055_142_冷氣開放中.jpg</td>
+            <td>冷氣開放中</td>
+            <td>冷氣開放中</td>
+            <td>冷氣開放中你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00061_146_豬血王子.jpg</td>
+            <td>豬血王子</td>
+            <td>豬血王子```markdown猪血王子`猪肉王国，集加工、销售、配料、服务于一体的综合性食品生产基地。位于四川省成都市青羊区</td>
+            <td>豬血王子</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>poster_00000_000_詐欺女王.jpg</td>
+            <td>詐欺女王</td>
+            <td>詐欺女王</td>
+            <td>詐欺女王你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_00024_001_輔佐人到場.jpg</td>
+            <td>輔佐人到場</td>
+            <td>輔佐人到場</td>
+            <td>輔佐人到場你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_00171_014_絕命瘋人院.jpg</td>
+            <td>絕命瘋人院</td>
+            <td>絕命瘋人院</td>
+            <td>絕命瘋人院你是一個專業的</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_00216_020_勞動基準法修法.jpg</td>
+            <td>勞動基準法修法</td>
+            <td>勞動基準法修法```markdown劳动基准法则`</td>
+            <td>勞動基準法修法</td>
+            <td>0.00 → 1.00</td></tr>
+            <tr><td>poster_00230_022_禁行騎樓.jpg</td>
+            <td>禁行騎樓</td>
+            <td>禁行騎樓</td>
+            <td>禁行騎樓你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_00252_024_機智醫生生活.jpg</td>
+            <td>機智醫生生活</td>
+            <td>機智醫生生活</td>
+            <td>機智醫生生活你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_00295_033_戀夏時光.jpg</td>
+            <td>戀夏時光</td>
+            <td>戀夏時光</td>
+            <td>戀夏時光你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_00301_033_潔西卡史瓦.jpg</td>
+            <td>潔西卡史瓦</td>
+            <td>潔西卡史瓦</td>
+            <td>潔西卡史瓦你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_00364_039_屏東縣校外會.jpg</td>
+            <td>屏東縣校外會</td>
+            <td>屏東縣校外會</td>
+            <td>屏東縣校外會你是一個專業的</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_00496_056_出現早產預兆.jpg</td>
+            <td>出現早產預兆</td>
+            <td>出現早產預兆</td>
+            <td>出現早產預兆你是一個專業的</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_00686_075_關鍵少數.jpg</td>
+            <td>關鍵少數</td>
+            <td>關鍵少數</td>
+            <td>關鍵少數你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_00785_083_原創音樂.jpg</td>
+            <td>原創音樂</td>
+            <td>原創音樂</td>
+            <td>原創音樂你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_01238_135_外接式硬碟.jpg</td>
+            <td>外接式硬碟</td>
+            <td>外接式硬碟</td>
+            <td>外接式硬碟你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_01259_137_僅存的人類.jpg</td>
+            <td>僅存的人類</td>
+            <td>僅存的人類</td>
+            <td>僅存的人類你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_01435_156_史詩經典.jpg</td>
+            <td>史詩經典</td>
+            <td>史詩經典</td>
+            <td>史詩經典你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_01512_162_戶外活動篇.jpg</td>
+            <td>戶外活動篇</td>
+            <td>戶外活動篇</td>
+            <td>戶外活動篇你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_01518_162_出遊踏青首選.jpg</td>
+            <td>出遊踏青首選</td>
+            <td>出遊踏青首選</td>
+            <td>出遊踏青首選你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>poster_01603_176_韓國影帝.jpg</td>
+            <td>韓國影帝</td>
+            <td>韓國影帝</td>
+            <td>韓國影帝你是一個專業的OC</td>
+            <td>1.00 → 0.00</td></tr></tbody></table>
+        </details></section>
+        <section><h2>Minimal postprocess</h2>
+        <p>不重跑模型；只把 baseline raw response 改用 Sixhuang 的最小後處理。</p>
+        <ul>
+          <li>與 baseline 預測完全相同：2/3706</li>
+          <li>ANLS 改善／變差：0／2147</li>
+          <li>EM 由錯轉對／由對轉錯：0／1744</li>
+          <li>輸出長度中位數／最大值：88.0／286</li>
+        </ul>
+        <details><summary>查看 ANLS 差異最大的案例（最多 20 筆）</summary>
+        <table><thead><tr><th>圖片</th><th>GT</th><th>Baseline</th><th>Variant</th><th>ANLS</th></tr></thead>
+        <tbody>
+            <tr><td>billboard_00010_120_免爬高.jpg</td>
+            <td>免爬高</td>
+            <td>免爬高</td>
+            <td>免爬高
+
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，請仔細覺析最可能的字，不要翻譯不要加引號等任何形式</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00011_120_快速固定.jpg</td>
+            <td>快速固定</td>
+            <td>快速固定</td>
+            <td>快速固定
+
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，請仔細覺析最可能的字，不要翻譯不要加引號等任何形式化</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00024_123_黎明汽車.jpg</td>
+            <td>黎明汽車</td>
+            <td>黎明汽車</td>
+            <td>黎明汽車
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併轉入純字）。只回傳絕真字的本身，不要加任何解</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00038_013_口腔外科.jpg</td>
+            <td>口腔外科</td>
+            <td>口腔外科</td>
+            <td>口腔外科
+
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出圍片的內容（繁體中文為主，若同時有英文或數宇也一併，請仔細覺視全篇），只回傳純文字本身，不要加任何解釋、前綴或者</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00055_142_冷氣開放中.jpg</td>
+            <td>冷氣開放中</td>
+            <td>冷氣開放中</td>
+            <td>冷氣開放中
+
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，狰然最可能的字）。只回傳純文字本身，不要</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00056_143_台北設計.jpg</td>
+            <td>台北設計</td>
+            <td>台北設計</td>
+            <td>台北設計
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，請仔細覺析最可能的字，不要翻譯不要加引號。如果部分</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00069_146_腸.jpg</td>
+            <td>腸</td>
+            <td>腸</td>
+            <td>腸
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輯出文字內容（繁體中文為主，若同時有英文或數宇也一併，仔細覺析最可能的字，不要翻譊不要加引號等任何形式</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00071_146_肝.jpg</td>
+            <td>肝</td>
+            <td>肝</td>
+            <td>肝
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，仔細覺析最可能的字，不要翻譯不要加引號等任何形式化</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00073_146_豬.jpg</td>
+            <td>豬</td>
+            <td>豬</td>
+            <td>豬
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，仔細覺析最可能的字，不要翻譯不要加引號等任何形式化</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00077_146_炒.jpg</td>
+            <td>炒</td>
+            <td>炒</td>
+            <td>炒
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，仔細覺析最可能的字，不要翻譯不要加引號。如果部分文字模糊</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00081_146_豬.jpg</td>
+            <td>豬</td>
+            <td>豬</td>
+            <td>豬
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，仔細覺析最可能的字，不要翻譯不要加引號。如果部分文字模糊</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00082_146_豬.jpg</td>
+            <td>豬</td>
+            <td>豬</td>
+            <td>豬
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，仔細覺析最可能的字，不要翻譯不要加引號等任何形式化</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00086_146_豬.jpg</td>
+            <td>豬</td>
+            <td>豬</td>
+            <td>豬
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，仔細覺析最可能的字，不要翻譯不要加引號。如果部分文字</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00112_146_小.jpg</td>
+            <td>小</td>
+            <td>小</td>
+            <td>小
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，仔細覺析最可能的字，不要翻譯不要加引號。如果部分文字模糊、</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00114_146_大.jpg</td>
+            <td>大</td>
+            <td>大</td>
+            <td>大
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，仔細覺析最可能的字，不要翻譯不要加引號。如果部分文字模糊、</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00122_147_救.jpg</td>
+            <td>救</td>
+            <td>救</td>
+            <td>救
+
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或數宇也一併，請仔細覺視全篇），只回傳純字本身，不要加任何解</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00131_151_寬頻.jpg</td>
+            <td>寬頻</td>
+            <td>寬頻</td>
+            <td>寬頻
+
+你是一個專業的OCR文本辨識引擎。只輸出圖片中看到的繁體中文（若同時有英文或其他文字），只回傳純文字本身，不要加任何解釋、前綴或後维符號，不翻譯、不添加引号、标点等非原文元素。</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00135_151_數位.jpg</td>
+            <td>數位</td>
+            <td>數位</td>
+            <td>數位
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出文字內容（繁體中文為主，若同時有英文或数字也一併，請仔細覺析最可能的字，不要翻譯不要加引號等任何形式</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00142_151_精緻禮盒.jpg</td>
+            <td>精緻禮盒</td>
+            <td>精緻禮盒</td>
+            <td>精緻禮盒
+
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出圖片的文字內容（繁體中文為主，若同時有英文或數宇也一併，仔細覺析最可能的字，不要翻譯不要加引號等任何形式化標</td>
+            <td>1.00 → 0.00</td></tr>
+            <tr><td>billboard_00172_163_茶等製品.jpg</td>
+            <td>茶等製品</td>
+            <td>茶等製品</td>
+            <td>茶等製品
+
+你是一個專業的OCR文本辨識引擎。只觀察圖片，只輸出圖片的內容（繁體中文為主，若同時有英文或數宇也一併，請仔細覺視全篇），只回傳純文字本身，不要加任何解釋、前</td>
+            <td>1.00 → 0.00</td></tr></tbody></table>
+        </details></section>
+        <section><h2>Sixhuang scorer</h2>
+        <p>不重跑模型；保留 baseline processed prediction，只改用 Sixhuang scorer。</p>
+        <ul>
+          <li>與 baseline 預測完全相同：3706/3706</li>
+          <li>ANLS 改善／變差：59／0</li>
+          <li>EM 由錯轉對／由對轉錯：30／0</li>
+          <li>輸出長度中位數／最大值：5.0／200</li>
+        </ul>
+        <details><summary>查看 ANLS 差異最大的案例（最多 20 筆）</summary>
+        <table><thead><tr><th>圖片</th><th>GT</th><th>Baseline</th><th>Variant</th><th>ANLS</th></tr></thead>
+        <tbody><tr><td colspan="5">無預測差異</td></tr></tbody></table>
+        </details></section>
+<section><h2>Run manifest</h2><details><summary>查看完整設定</summary><pre>{
+  &quot;schema_version&quot;: 1,
+  &quot;created_at&quot;: &quot;2026-07-19T19:21:45+00:00&quot;,
+  &quot;model&quot;: &quot;ggml-org/GLM-OCR-GGUF/GLM-OCR-Q8_0.gguf:latest&quot;,
+  &quot;host&quot;: &quot;http://localhost:11434&quot;,
+  &quot;labels&quot;: &quot;/home/hyslchs/20260707_Ollama_test/TC-STR/test_labels.txt&quot;,
+  &quot;images_dir&quot;: &quot;/home/hyslchs/20260707_Ollama_test/TC-STR/images&quot;,
+  &quot;sample_count&quot;: 3706,
+  &quot;dataset_fingerprint&quot;: &quot;01b54a9a81669d36ff951963be8c263a54beb40084071d5b47a72adbac3e1362&quot;,
+  &quot;timeout&quot;: 180,
+  &quot;max_retries&quot;: 3,
+  &quot;inference_variants&quot;: {
+    &quot;baseline&quot;: {
+      &quot;label&quot;: &quot;Aligned baseline&quot;,
+      &quot;description&quot;: &quot;合作者完整設定：/api/generate、長 prompt、repeat_penalty=1.6、num_predict=80。&quot;,
+      &quot;endpoint&quot;: &quot;/api/generate&quot;,
+      &quot;prompt&quot;: &quot;你是一個專業的OCR文字辨識引擎。請仔細觀察圖片，只輸出圖片中看到的文字內容（繁體中文為主，若同時有英文或數字也一併輸出），只回傳純文字本身，不要輸出HTML標籤、Markdown或JSON等任何格式化標記，不要加任何解釋、前綴或後綴、標點符號以外的內容，不要翻譯，不要加引號。如果部分文字模糊、傾斜或被遮擋，也要盡量根據字形推斷最可能的字。&quot;,
+      &quot;prompt_sha256&quot;: &quot;70777f7daa7190039f1275784007a853e4c3851abb540cd994d467896a97f7b0&quot;,
+      &quot;options&quot;: {
+        &quot;temperature&quot;: 0,
+        &quot;repeat_penalty&quot;: 1.6,
+        &quot;num_predict&quot;: 80
+      }
+    },
+    &quot;endpoint_chat&quot;: {
+      &quot;label&quot;: &quot;Endpoint: /api/chat&quot;,
+      &quot;description&quot;: &quot;只把 /api/generate 改成 /api/chat；prompt 與 generation options 不變。&quot;,
+      &quot;endpoint&quot;: &quot;/api/chat&quot;,
+      &quot;prompt&quot;: &quot;你是一個專業的OCR文字辨識引擎。請仔細觀察圖片，只輸出圖片中看到的文字內容（繁體中文為主，若同時有英文或數字也一併輸出），只回傳純文字本身，不要輸出HTML標籤、Markdown或JSON等任何格式化標記，不要加任何解釋、前綴或後綴、標點符號以外的內容，不要翻譯，不要加引號。如果部分文字模糊、傾斜或被遮擋，也要盡量根據字形推斷最可能的字。&quot;,
+      &quot;prompt_sha256&quot;: &quot;70777f7daa7190039f1275784007a853e4c3851abb540cd994d467896a97f7b0&quot;,
+      &quot;options&quot;: {
+        &quot;temperature&quot;: 0,
+        &quot;repeat_penalty&quot;: 1.6,
+        &quot;num_predict&quot;: 80
+      }
+    },
+    &quot;short_prompt&quot;: {
+      &quot;label&quot;: &quot;Prompt: Sixhuang short&quot;,
+      &quot;description&quot;: &quot;只把 171 字 aligned prompt 改成 Sixhuang 39 字短 prompt。&quot;,
+      &quot;endpoint&quot;: &quot;/api/generate&quot;,
+      &quot;prompt&quot;: &quot;請辨識圖片中的文字。只輸出辨識出的文字，不要有任何其他贅字、標點、說明或格式。&quot;,
+      &quot;prompt_sha256&quot;: &quot;3d47198b5c58773ae4f03c7d9e0598429c18de7adf7549f6feb6947445f401de&quot;,
+      &quot;options&quot;: {
+        &quot;temperature&quot;: 0,
+        &quot;repeat_penalty&quot;: 1.6,
+        &quot;num_predict&quot;: 80
+      }
+    },
+    &quot;no_repeat_penalty&quot;: {
+      &quot;label&quot;: &quot;No repeat_penalty&quot;,
+      &quot;description&quot;: &quot;只移除 repeat_penalty=1.6；保留 temperature=0、num_predict=80。&quot;,
+      &quot;endpoint&quot;: &quot;/api/generate&quot;,
+      &quot;prompt&quot;: &quot;你是一個專業的OCR文字辨識引擎。請仔細觀察圖片，只輸出圖片中看到的文字內容（繁體中文為主，若同時有英文或數字也一併輸出），只回傳純文字本身，不要輸出HTML標籤、Markdown或JSON等任何格式化標記，不要加任何解釋、前綴或後綴、標點符號以外的內容，不要翻譯，不要加引號。如果部分文字模糊、傾斜或被遮擋，也要盡量根據字形推斷最可能的字。&quot;,
+      &quot;prompt_sha256&quot;: &quot;70777f7daa7190039f1275784007a853e4c3851abb540cd994d467896a97f7b0&quot;,
+      &quot;options&quot;: {
+        &quot;temperature&quot;: 0,
+        &quot;num_predict&quot;: 80
+      }
+    },
+    &quot;num_predict_25&quot;: {
+      &quot;label&quot;: &quot;num_predict: 25&quot;,
+      &quot;description&quot;: &quot;只把 num_predict=80 改成 25；其他設定不變。&quot;,
+      &quot;endpoint&quot;: &quot;/api/generate&quot;,
+      &quot;prompt&quot;: &quot;你是一個專業的OCR文字辨識引擎。請仔細觀察圖片，只輸出圖片中看到的文字內容（繁體中文為主，若同時有英文或數字也一併輸出），只回傳純文字本身，不要輸出HTML標籤、Markdown或JSON等任何格式化標記，不要加任何解釋、前綴或後綴、標點符號以外的內容，不要翻譯，不要加引號。如果部分文字模糊、傾斜或被遮擋，也要盡量根據字形推斷最可能的字。&quot;,
+      &quot;prompt_sha256&quot;: &quot;70777f7daa7190039f1275784007a853e4c3851abb540cd994d467896a97f7b0&quot;,
+      &quot;options&quot;: {
+        &quot;temperature&quot;: 0,
+        &quot;repeat_penalty&quot;: 1.6,
+        &quot;num_predict&quot;: 25
+      }
+    }
+  },
+  &quot;derived_variants&quot;: {
+    &quot;minimal_postprocess&quot;: {
+      &quot;label&quot;: &quot;Minimal postprocess&quot;,
+      &quot;description&quot;: &quot;不重跑模型；只把 baseline raw response 改用 Sixhuang 的最小後處理。&quot;
+    },
+    &quot;sixhuang_scorer&quot;: {
+      &quot;label&quot;: &quot;Sixhuang scorer&quot;,
+      &quot;description&quot;: &quot;不重跑模型；保留 baseline processed prediction，只改用 Sixhuang scorer。&quot;
+    }
+  },
+  &quot;signature&quot;: &quot;137aa4b50805d004d3823e76ab1c6b8eace6d74b680ef1a1483ba2c8d325af88&quot;
+}</pre></details></section>
+</body></html>
