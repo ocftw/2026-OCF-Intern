@@ -68,6 +68,7 @@ class BenchmarkRunner:
         digest = metadata["digest"]
 
         if sample_list:
+            self._progress(model["id"], benchmark["id"], 0, len(sample_list), "warmup")
             warm_prompt = self._prompt(benchmark["id"], prompt_template, sample_list[0])
             warmup = self.client.chat(
                 model=model["tag"],
@@ -100,6 +101,7 @@ class BenchmarkRunner:
 
         completed = 0
         terminal_failures = 0
+        self._progress(model["id"], benchmark["id"], completed, len(sample_list), "inference")
         for sample in sample_list:
             prompt = self._prompt(benchmark["id"], prompt_template, sample)
             prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
@@ -114,6 +116,9 @@ class BenchmarkRunner:
             )
             if key.text() in done:
                 completed += 1
+                self._progress(
+                    model["id"], benchmark["id"], completed, len(sample_list), "inference"
+                )
                 continue
             result = self.client.chat(
                 model=model["tag"],
@@ -189,7 +194,8 @@ class BenchmarkRunner:
             checkpoint.append(record)
             terminal_failures += int(result.status == "terminal_failure")
             completed += 1
-            self._progress(model["id"], benchmark["id"], completed, len(sample_list))
+            self._progress(model["id"], benchmark["id"], completed, len(sample_list), "inference")
+        self._progress(model["id"], benchmark["id"], completed, len(sample_list), "complete")
         return {
             "status": "failed" if smoke and terminal_failures else "completed",
             "completed": completed,
@@ -208,13 +214,14 @@ class BenchmarkRunner:
             return template.format(**sample.ground_truth)
         return template
 
-    def _progress(self, model: str, benchmark: str, completed: int, total: int) -> None:
+    def _progress(self, model: str, benchmark: str, completed: int, total: int, phase: str) -> None:
         write_json_atomic(
             self.progress_path,
             {
                 "run_id": self.run_id,
                 "current_model": model,
                 "current_benchmark": benchmark,
+                "phase": phase,
                 "completed": completed,
                 "total": total,
                 "updated_at_utc": datetime.now(timezone.utc).isoformat(),

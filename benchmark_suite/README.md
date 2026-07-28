@@ -37,6 +37,12 @@ dataset revision 或 model digest 改變時 resume key 不相符，不會混用�
 ./benchmark_suite/status.sh
 ```
 
+狀態畫面會以繁體中文顯示目前階段、模型、Benchmark、warm-up／推論步驟、單組樣本
+進度、15 組完成數、最近更新與最近錯誤；不再直接輸出難讀的 Ollama pull log。
+`launch_all.sh` 預設每 30 秒自動呼叫同一個狀態畫面，可用 `--interval 10` 改為每
+10 秒。執行中的舊版 runner 若尚未寫入 phase，狀態會依固定模型／Benchmark 順序推定
+下一組並明確標註；下次續跑後會在 warm-up 開始前精確更新。
+
 中止時先從 `status.sh` 確認 PID，再執行 `kill -TERM <PID>`。這不會破壞已 fsync 的
 JSONL；之後再次執行 `launch_all.sh` 即可續跑。不要刪除或手動編輯 prediction JSONL。
 
