@@ -1,0 +1,13 @@
+.venv/
+data/
+cache/
+runs/
+calibration/
+*.pid
+*.lock
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+*.egg-info/
+!requirements.lock
