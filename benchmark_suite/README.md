@@ -15,8 +15,21 @@
 
 launcher 先做快速 preflight，再以 `setsid + nohup` 啟動背景程序並用 `flock`
 防止重複啟動。SSH 中斷不會送達背景 process。啟動後會印出 run ID、PID、log、
-results 路徑與狀態指令。相同 effective config 的未完成 run 會自動續跑；config、
-prompt、dataset revision 或 model digest 改變時 resume key 不相符，不會混用。
+results 路徑，並預設每 30 秒顯示一次進度。按 `Ctrl-C` 只離開進度監看，不會停止
+背景 benchmark。相同 effective config 的未完成 run 會自動續跑；config、prompt、
+dataset revision 或 model digest 改變時 resume key 不相符，不會混用。
+
+如果只想啟動後立即返回 shell：
+
+```bash
+./benchmark_suite/launch_all.sh --detach
+```
+
+也可以調整顯示間隔，例如每 10 秒：
+
+```bash
+./benchmark_suite/launch_all.sh --interval 10
+```
 
 查看狀態：
 

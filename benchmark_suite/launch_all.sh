@@ -4,6 +4,30 @@ set -euo pipefail
 SUITE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 CONFIG="${BENCHMARK_CONFIG:-${SUITE_DIR}/configs/experiment.yaml}"
 STATE_DIR="${SUITE_DIR}/runs/.state"
+FOLLOW_PROGRESS=1
+PROGRESS_INTERVAL="${BENCHMARK_STATUS_INTERVAL:-30}"
+
+while (($#)); do
+  case "$1" in
+    --detach)
+      FOLLOW_PROGRESS=0
+      shift
+      ;;
+    --interval)
+      [[ $# -ge 2 ]] || { echo "[FAIL] --interval 需要秒數" >&2; exit 2; }
+      PROGRESS_INTERVAL="$2"
+      shift 2
+      ;;
+    *)
+      echo "[FAIL] 未知參數: $1" >&2
+      echo "用法: $0 [--detach] [--interval SECONDS]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+[[ "$PROGRESS_INTERVAL" =~ ^[1-9][0-9]*$ ]] ||
+  { echo "[FAIL] interval 必須是正整數秒" >&2; exit 2; }
 mkdir -p "$STATE_DIR"
 
 [[ "$(uname -s)" == "Linux" ]] || { echo "[FAIL] 需要 Linux/Ubuntu" >&2; exit 1; }
@@ -44,3 +68,19 @@ echo "PID: ${PID}"
 echo "log: ${LOG_PATH}"
 echo "results: ${SUITE_DIR}/runs/<run_id>/"
 echo "status: ${SUITE_DIR}/status.sh"
+
+if ((FOLLOW_PROGRESS)); then
+  echo
+  echo "每 ${PROGRESS_INTERVAL} 秒更新進度；按 Ctrl-C 僅離開監看，背景 benchmark 會繼續。"
+  trap 'echo; echo "已離開進度監看；背景 benchmark 仍在執行。"; exit 0' INT TERM
+  while kill -0 "$PID" 2>/dev/null; do
+    echo
+    echo "===== $(date -u '+%Y-%m-%dT%H:%M:%SZ') ====="
+    "${SUITE_DIR}/status.sh"
+    sleep "$PROGRESS_INTERVAL" &
+    wait $!
+  done
+  echo
+  echo "===== $(date -u '+%Y-%m-%dT%H:%M:%SZ') final ====="
+  "${SUITE_DIR}/status.sh"
+fi
