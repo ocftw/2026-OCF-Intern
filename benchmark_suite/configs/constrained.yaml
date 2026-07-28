@@ -3,6 +3,7 @@ schema_version: 1
 profile: constrained
 extends: experiment.yaml
 minimum_free_disk_gb: 45
+minimum_results_free_disk_gb: 10
 benchmarks_overrides:
   omnidocbench:
     options:

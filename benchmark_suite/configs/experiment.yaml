@@ -90,4 +90,7 @@ failure_policy:
   terminal_failure_in_denominator: true
   retryable: [transport, timeout, http_5xx]
 smoke_samples_per_combination: 1
+# data_dir/cache_dir 所在的暫存檔案系統需求；可使用會在 stop 後清除的 /srv。
 minimum_free_disk_gb: 80
+# runs_dir 保存 manifest、JSONL predictions 與報告，必須放在持久磁碟。
+minimum_results_free_disk_gb: 20

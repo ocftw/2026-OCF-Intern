@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
 SUITE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-STATE_DIR="${SUITE_DIR}/runs/.state"
+RUNS_DIR="${BENCHMARK_RUNS_DIR:-${SUITE_DIR}/runs}"
+[[ "$RUNS_DIR" == /* ]] || RUNS_DIR="${SUITE_DIR}/../${RUNS_DIR}"
+STATE_DIR="${RUNS_DIR}/.state"
 PID="$(cat "${STATE_DIR}/active.pid" 2>/dev/null || true)"
 LOG_PATH="$(cat "${STATE_DIR}/active.log" 2>/dev/null || true)"
 RUN_DIR="$(cat "${STATE_DIR}/current_run" 2>/dev/null || true)"

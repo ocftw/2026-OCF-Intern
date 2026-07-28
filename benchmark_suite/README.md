@@ -45,7 +45,8 @@ JSONL；之後再次執行 `launch_all.sh` 即可續跑。不要刪除或手動�
 - Ubuntu/Linux、Python 3.10+、`git`、`curl`、`flock`、`setsid`
 - 已安裝並啟動 Ollama，預設 `http://localhost:11434`
 - Docker daemon 可由目前使用者使用
-- 主 profile 預留至少 80 GiB；實際模型與 Hugging Face cache 需求可能更高
+- 主 profile 的可重建 scratch 預留至少 80 GiB，持久 results 預留至少 20 GiB；
+  實際模型與 Hugging Face cache 需求可能更高
 - GPU/VRAM、RAM 必須足以承載所選模型與 context。所有請求 concurrency 固定為 1
 - 使用者必須自行確認各模型及資料集授權／使用限制
 
@@ -53,6 +54,33 @@ OmniDocBench 的 CDM 需要 TeX Live、ImageMagick 與 Ghostscript；系統使�
 `ghcr.io/zeng-weijun/omnidocbench-eval:repro-ubuntu2204` Docker image 固定環境。
 若 Docker/evaluator 失敗，prediction 會保留，但 scoring 明確標成 `blocked`，不會
 改用自製近似分數。
+
+### 使用 instance-local `/srv` 暫存空間
+
+若主機的 `/srv` 是容量較大、但 stop 後會清除的 instance-local volume，可將 Ollama
+models、Docker data-root、benchmark datasets 與 cache 放在 `/srv`，但不可把正式
+prediction/result 放在那裡。由 repository 根目錄執行一次：
+
+```bash
+sudo ./benchmark_suite/scripts/configure_srv_scratch.sh
+```
+
+腳本會確認 `/srv` 是獨立且可寫的 mount，建立 `/srv/ocf-benchmark/`，以專用的
+`ocf-srv-prepare.service` 確保開機後重建空目錄，並為 Docker/Ollama 加上 `/srv`
+mount dependency。
+既有 `/opt/ollama/models` 會先複製及驗證，再保留成
+`/opt/ollama/models.pre-srv-backup`；不會在首次配置時刪除。確認 `ollama list`、
+model digest 與 service 都正常後，才可清除備份：
+
+```bash
+sudo ./benchmark_suite/scripts/configure_srv_scratch.sh --cleanup-backup
+```
+
+`launch_all.sh` 發現 `/srv/ocf-benchmark/work` 可寫時，會自動將 data/cache 指向其中；
+`benchmark_suite/runs/` 仍留在持久根磁碟。也可用
+`BENCHMARK_SCRATCH_ROOT`、`BENCHMARK_DATA_DIR`、`BENCHMARK_CACHE_DIR` 明確覆寫，
+後兩者優先。instance stop 後模型與資料會消失，下一次正式執行會重新下載；run manifest、
+checkpoint 與結果不受影響。
 
 主 profile 資源不足時，在昂貴正式推論前會失敗。低資源替代方案是另一個完整實驗：
 
@@ -227,8 +255,12 @@ revision、prompt hash、effective YAML、failure policy 與 lock hash。
 ## 常見問題
 
 - Ollama health 失敗：確認 `ollama serve` 與 `OLLAMA_HOST`。
-- Docker permission denied：將目前帳號依組織政策設定為可使用 Docker；程式不會 sudo。
-- 磁碟不足：清理非本 run cache 或使用 constrained profile；不要在 run 中途改 YAML。
+- Docker permission denied：若帳號剛加入 `docker` 群組，請重新登入 SSH，或先執行
+  `newgrp docker` 讓目前 shell 繼承群組；正式 runner 不會自行 sudo。
+- scratch 磁碟不足：先配置上述 `/srv`，或清理非本 run cache／使用 constrained
+  profile；不要在 run 中途改 YAML。
+- `/srv` stop 後被清空：這是預期行為；啟動服務時會重建目錄，模型與 dataset 需重抓，
+  持久的 `benchmark_suite/runs/` 仍可依相同 resume identity 續跑。
 - 模型 tag 不存在：先用 `ollama pull <tag>` 驗證，或用 YAML／環境變數替換。
 - Omni scoring blocked：查看 `scores/*artifacts/official_stderr.log`，prediction 不會遺失。
 - OOM：正式推論不會自動降參數。停止後改用 constrained profile，形成另一個 run。

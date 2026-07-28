@@ -62,13 +62,45 @@ def preflight(cfg: dict[str, Any], strict: bool = True) -> list[str]:
             proc = subprocess.run(["docker", "info"], text=True, capture_output=True, check=False)
             if proc.returncode:
                 errors.append("Docker daemon 不可用（OmniDocBench 官方 evaluator 必需）")
-    runs_dir = resolve_path(cfg, cfg["paths"]["runs_dir"])
-    runs_dir.mkdir(parents=True, exist_ok=True)
-    if not os.access(runs_dir, os.W_OK):
-        errors.append(f"output directory 不可寫: {runs_dir}")
-    free_gb = shutil.disk_usage(runs_dir).free / 1024**3
-    if strict and free_gb < float(cfg["minimum_free_disk_gb"]):
-        errors.append(f"磁碟僅剩 {free_gb:.1f} GiB，profile 要求 {cfg['minimum_free_disk_gb']} GiB")
+    storage = {
+        "data": resolve_path(cfg, cfg["paths"]["data_dir"]),
+        "cache": resolve_path(cfg, cfg["paths"]["cache_dir"]),
+        "results": resolve_path(cfg, cfg["paths"]["runs_dir"]),
+    }
+    usable: dict[str, Path] = {}
+    for label, path in storage.items():
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            errors.append(f"{label} directory 無法建立: {path}: {exc}")
+            continue
+        if not os.access(path, os.W_OK):
+            errors.append(f"{label} directory 不可寫: {path}")
+            continue
+        usable[label] = path
+
+    # data/cache 是可重建 scratch；runs 是不可遺失的正式結果。若它們剛好位於
+    # 同一檔案系統，只套用兩項門檻的最大值，避免重複計算相同 free space。
+    requirements: dict[int, dict[str, Any]] = {}
+    for label, path in usable.items():
+        device = path.stat().st_dev
+        required = float(
+            cfg["minimum_results_free_disk_gb"]
+            if label == "results"
+            else cfg["minimum_free_disk_gb"]
+        )
+        entry = requirements.setdefault(device, {"path": path, "labels": [], "required_gb": 0.0})
+        entry["labels"].append(label)
+        entry["required_gb"] = max(entry["required_gb"], required)
+    if strict:
+        for entry in requirements.values():
+            free_gb = shutil.disk_usage(entry["path"]).free / 1024**3
+            if free_gb < entry["required_gb"]:
+                labels = "/".join(entry["labels"])
+                errors.append(
+                    f"{labels} 磁碟僅剩 {free_gb:.1f} GiB，"
+                    f"profile 要求 {entry['required_gb']:g} GiB"
+                )
     return errors
 
 

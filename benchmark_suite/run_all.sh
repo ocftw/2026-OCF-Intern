@@ -23,6 +23,12 @@ while (($#)); do
   esac
 done
 
+SRV_WORK_DIR="${BENCHMARK_SCRATCH_ROOT:-/srv/ocf-benchmark/work}"
+if [[ -d "$SRV_WORK_DIR" && -w "$SRV_WORK_DIR" ]]; then
+  export BENCHMARK_DATA_DIR="${BENCHMARK_DATA_DIR:-${SRV_WORK_DIR}/data}"
+  export BENCHMARK_CACHE_DIR="${BENCHMARK_CACHE_DIR:-${SRV_WORK_DIR}/cache}"
+fi
+
 export PYTHONPATH="${SUITE_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
 if [[ ! -x "${SUITE_DIR}/.venv/bin/python" ]]; then
   python3 -m venv "${SUITE_DIR}/.venv"
@@ -48,7 +54,9 @@ fi
 
 "$PYTHON" -m ocf_benchmark.cli --config "$CONFIG" preflight
 
-STATE_DIR="${SUITE_DIR}/runs/.state"
+RUNS_DIR="${BENCHMARK_RUNS_DIR:-${SUITE_DIR}/runs}"
+[[ "$RUNS_DIR" == /* ]] || RUNS_DIR="${REPO_ROOT}/${RUNS_DIR}"
+STATE_DIR="${RUNS_DIR}/.state"
 mkdir -p "$STATE_DIR"
 MODELS_METADATA="${STATE_DIR}/models_metadata.json"
 

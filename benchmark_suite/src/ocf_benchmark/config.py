@@ -92,6 +92,10 @@ def validate_config(cfg: dict[str, Any]) -> None:
         raise ConfigError("正式 benchmark concurrency 必須固定為 1")
     if cfg.get("ollama", {}).get("endpoint") != "/api/chat":
         raise ConfigError("主實驗必須使用 /api/chat")
+    for key in ("minimum_free_disk_gb", "minimum_results_free_disk_gb"):
+        value = cfg.get(key)
+        if not isinstance(value, (int, float)) or value <= 0:
+            raise ConfigError(f"{key} 必須是正數")
     for model in models:
         if not model.get("tag"):
             raise ConfigError(f"model {model.get('id')} 缺少 tag")

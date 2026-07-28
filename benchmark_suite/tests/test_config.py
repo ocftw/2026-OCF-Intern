@@ -42,3 +42,12 @@ def test_constrained_is_distinct(suite_dir):
     constrained = load_config(suite_dir / "configs/constrained.yaml")
     assert config_hash(main) != config_hash(constrained)
     assert constrained["profile"] == "constrained"
+    assert constrained["minimum_free_disk_gb"] == 45
+    assert constrained["minimum_results_free_disk_gb"] == 10
+
+
+def test_disk_thresholds_must_be_positive(suite_dir):
+    cfg = load_config(suite_dir / "configs/experiment.yaml")
+    cfg["minimum_results_free_disk_gb"] = 0
+    with pytest.raises(ConfigError, match="minimum_results_free_disk_gb"):
+        validate_config(cfg)
