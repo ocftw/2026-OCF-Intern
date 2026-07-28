@@ -51,3 +51,40 @@ def test_status_sh_displays_friendly_smoke_progress(suite_dir, tmp_path):
     assert "1/3（33.3%）" in result.stdout
     assert "1/15 完成" in result.stdout
     assert "pulling manifest" not in result.stdout
+
+
+def test_status_sh_displays_single_benchmark_scope_and_limit(suite_dir, tmp_path):
+    runs = tmp_path / "runs"
+    state = runs / ".state"
+    run = runs / "run-2"
+    state.mkdir(parents=True)
+    run.mkdir(parents=True)
+    (state / "current_run").write_text(str(run))
+    (state / "requested_run_id").write_text("run-2")
+    (state / "active.pid").write_text(str(os.getpid()))
+    (state / "active.log").write_text("/tmp/test.log")
+    (state / "active_scope.json").write_text(
+        json.dumps({"benchmarks": ["tc_str"], "limit": 100, "combination_total": 5})
+    )
+    (run / "manifest.json").write_text(json.dumps({"status": "running"}))
+    (run / "progress.json").write_text(
+        json.dumps(
+            {
+                "current_model": "qwen3_vl_4b",
+                "current_benchmark": "tc_str",
+                "phase": "inference",
+                "completed": 20,
+                "total": 100,
+            }
+        )
+    )
+    result = subprocess.run(
+        [str(suite_dir / "status.sh")],
+        text=True,
+        capture_output=True,
+        check=True,
+        env={**os.environ, "BENCHMARK_RUNS_DIR": str(runs)},
+    )
+    assert "TC-STR；每模型 100" in result.stdout
+    assert "20/100（20.0%）" in result.stdout
+    assert "0/5 完成" in result.stdout

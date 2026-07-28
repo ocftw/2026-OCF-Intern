@@ -92,6 +92,8 @@ PID=$!
 printf '%s\n' "$PID" > "${STATE_DIR}/active.pid"
 printf '%s\n' "$LOG_PATH" > "${STATE_DIR}/active.log"
 printf '%s\n' "$REQUESTED_RUN_ID" > "${STATE_DIR}/requested_run_id"
+printf '{"benchmarks":["omnidocbench","tc_str","vistw_mcq"],"limit":null,"combination_total":15}\n' \
+  > "${STATE_DIR}/active_scope.json"
 
 echo "run ID（新 run；若自動續跑將沿用舊 ID）: ${REQUESTED_RUN_ID}"
 echo "PID: ${PID}"

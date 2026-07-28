@@ -43,6 +43,42 @@ dataset revision 或 model digest 改變時 resume key 不相符，不會混用�
 10 秒。執行中的舊版 runner 若尚未寫入 phase，狀態會依固定模型／Benchmark 順序推定
 下一組並明確標註；下次續跑後會在 warm-up 開始前精確更新。
 
+## 分開執行 Benchmark 與限制筆數
+
+若需要先取得 TC-STR 結果，再執行較慢的文件解析與推理任務，可使用三個獨立入口：
+
+```bash
+./benchmark_suite/launch_tc_str.sh
+./benchmark_suite/launch_omnidocbench.sh
+./benchmark_suite/launch_vistw_mcq.sh
+```
+
+每個入口仍依固定順序逐一執行五個模型、concurrency 固定為 1，並預設每 30 秒顯示
+目前模型、Benchmark、單組進度及 5 組完成數。三個入口共用同一把 `flock`，不會同時
+搶用 GPU。相同 config 的未完成 run 會自動續跑；例如先完成 TC-STR，之後再補
+OmniDocBench。先前保存的其他 Benchmark checkpoint 不會被覆寫。
+
+用 `--limit N` 可讓**每個模型**只跑固定資料順序的前 N 筆：
+
+```bash
+./benchmark_suite/launch_tc_str.sh --limit 100
+./benchmark_suite/launch_omnidocbench.sh --limit 20
+./benchmark_suite/launch_vistw_mcq.sh --limit 50
+```
+
+五個模型會使用完全相同的樣本前綴。省略 `--limit` 才是完整 split；limited 結果屬於
+pilot／小規模檢查，不是完整正式 Benchmark，也不得用 test pilot 選參數。報告寫在
+`runs/<run_id>/partial/<benchmark>/limit_<N>/`；完整單 Benchmark 報告則在
+`partial/<benchmark>/full/`。
+
+之後移除同一命令的 `--limit`，checkpoint key 相同的前 N 筆會略過，其餘樣本接著跑。
+可用 `--interval 10` 改變顯示間隔、`--detach` 只啟動不監看、`--smoke` 只做五組
+smoke。不下載或推論的參數驗證：
+
+```bash
+./benchmark_suite/run_benchmark.sh --benchmark tc_str --limit 100 --dry-run
+```
+
 中止時先從 `status.sh` 確認 PID，再執行 `kill -TERM <PID>`。這不會破壞已 fsync 的
 JSONL；之後再次執行 `launch_all.sh` 即可續跑。不要刪除或手動編輯 prediction JSONL。
 
@@ -128,7 +164,8 @@ effective config/run。
 
 準備階段會先 pull **全部五個模型**，再透過 `/api/tags` 與 `/api/show` 保存實際
 digest、quantization、template、Modelfile、parameters 與 model metadata。每個模型完成
-三項 benchmark 後傳 `keep_alive=0` 卸載，才進入下一模型。
+本次選定的 benchmark 後傳 `keep_alive=0` 卸載，才進入下一模型；完整入口則完成三項
+後卸載。
 
 ## Benchmark、revision 與授權
 

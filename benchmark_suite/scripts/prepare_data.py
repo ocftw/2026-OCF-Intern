@@ -79,6 +79,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default=str(SUITE / "configs/experiment.yaml"))
     parser.add_argument("--verify-only", action="store_true")
+    parser.add_argument(
+        "--benchmark",
+        action="append",
+        choices=["omnidocbench", "tc_str", "vistw_mcq"],
+        help="只準備指定 benchmark；可重複傳入",
+    )
     args = parser.parse_args()
     cfg = load_config(args.config)
     data_dir = resolve_path(cfg, cfg["paths"]["data_dir"])
@@ -87,6 +93,8 @@ def main() -> int:
     cache_dir.mkdir(parents=True, exist_ok=True)
     manifest = []
     for benchmark in cfg["benchmarks"]:
+        if args.benchmark and benchmark["id"] not in args.benchmark:
+            continue
         if benchmark["id"] == "tc_str":
             root = data_dir / "TC-STR"
             if not (root / "test_labels.txt").exists():

@@ -16,11 +16,19 @@ from ocf_benchmark.config import load_config, resolve_path  # noqa: E402
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default=str(SUITE / "configs/experiment.yaml"))
+    parser.add_argument(
+        "--benchmark",
+        action="append",
+        choices=["omnidocbench", "tc_str", "vistw_mcq"],
+        help="只準備指定 benchmark；可重複傳入",
+    )
     args = parser.parse_args()
     cfg = load_config(args.config)
     root = resolve_path(cfg, cfg["paths"]["cache_dir"]) / "evaluators"
     root.mkdir(parents=True, exist_ok=True)
     for benchmark in cfg["benchmarks"]:
+        if args.benchmark and benchmark["id"] not in args.benchmark:
+            continue
         evaluator = benchmark.get("evaluator")
         if not evaluator:
             continue

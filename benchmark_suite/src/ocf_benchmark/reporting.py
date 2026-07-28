@@ -47,12 +47,19 @@ def _latency(rows: list[dict[str, Any]]) -> tuple[float | None, float | None, fl
 
 
 def build_summary(
-    cfg: dict[str, Any], run_dir: Path, model_metadata: dict[str, dict[str, Any]]
+    cfg: dict[str, Any],
+    run_dir: Path,
+    model_metadata: dict[str, dict[str, Any]],
+    sample_limit: int | None = None,
 ) -> list[dict[str, Any]]:
     output = []
     for model in cfg["models"]:
         for benchmark in cfg["benchmarks"]:
             rows = _read_jsonl(run_dir / "predictions" / f"{model['id']}__{benchmark['id']}.jsonl")
+            if sample_limit is not None:
+                rows = [
+                    row for row in rows if int(row.get("sample_index", sample_limit)) < sample_limit
+                ]
             failures = sum(row.get("status") != "completed" for row in rows)
             truncated = sum(bool(row.get("truncated")) for row in rows)
             invalid = 0
@@ -130,7 +137,12 @@ def build_summary(
     return output
 
 
-def write_reports(summary: list[dict[str, Any]], run_dir: Path) -> None:
+def write_reports(
+    summary: list[dict[str, Any]],
+    run_dir: Path,
+    source_run_dir: Path | None = None,
+) -> None:
+    source_run_dir = source_run_dir or run_dir
     (run_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -146,9 +158,10 @@ def write_reports(summary: list[dict[str, Any]], run_dir: Path) -> None:
         writer.writeheader()
         writer.writerows(flat_rows)
     failures = []
-    for path in sorted((run_dir / "predictions").glob("*.jsonl")):
+    selected_benchmarks = {row["benchmark"] for row in summary}
+    for path in sorted((source_run_dir / "predictions").glob("*.jsonl")):
         for row in _read_jsonl(path):
-            if row.get("status") != "completed":
+            if row.get("benchmark") in selected_benchmarks and row.get("status") != "completed":
                 failures.append(
                     {
                         "model": row.get("model_logical_id"),
@@ -187,6 +200,8 @@ def write_reports(summary: list[dict[str, Any]], run_dir: Path) -> None:
     sections = []
     for benchmark, heading in title.items():
         rows = [row for row in summary if row["benchmark"] == benchmark]
+        if not rows:
+            continue
         body = "\n".join(
             f"| {r['model']} | {r['status']} | {r['primary_metric']} | "
             f"[{r['ci95_low']}, {r['ci95_high']}] | {r['n']} | {r['failed']} | "
@@ -214,7 +229,13 @@ pre{{white-space:pre-wrap;background:#f6f8fa;padding:1rem;border-radius:8px}}
     (run_dir / "report.html").write_text(document, encoding="utf-8")
 
 
-def write_pairwise(cfg: dict[str, Any], run_dir: Path) -> list[dict[str, Any]]:
+def write_pairwise(
+    cfg: dict[str, Any],
+    run_dir: Path,
+    benchmark_ids: set[str] | None = None,
+    output_path: Path | None = None,
+    sample_limit: int | None = None,
+) -> list[dict[str, Any]]:
     """每個 benchmark 10 組；Omni 無 page metric 時明確 N/A。"""
     model_ids = [model["id"] for model in cfg["models"]]
     results: list[dict[str, Any]] = []
@@ -222,46 +243,57 @@ def write_pairwise(cfg: dict[str, Any], run_dir: Path) -> list[dict[str, Any]]:
     vistw_by_model = {}
     for model in model_ids:
         tc_rows = _read_jsonl(run_dir / "predictions" / f"{model}__tc_str.jsonl")
+        if sample_limit is not None:
+            tc_rows = [
+                row for row in tc_rows if int(row.get("sample_index", sample_limit)) < sample_limit
+            ]
         tc_by_model[model] = {
             str(row["sample_id"]): float(row["metrics"]["exact"]) for row in tc_rows
         }
         vistw_rows = _read_jsonl(run_dir / "predictions" / f"{model}__vistw_mcq.jsonl")
+        if sample_limit is not None:
+            vistw_rows = [
+                row
+                for row in vistw_rows
+                if int(row.get("sample_index", sample_limit)) < sample_limit
+            ]
         nested: dict[str, dict[str, float]] = {}
         for row in vistw_rows:
             nested.setdefault(str(row["subject"]), {})[str(row["sample_id"])] = float(
                 row["metrics"]["correct"]
             )
         vistw_by_model[model] = nested
-    for row in paired_deltas(
-        tc_by_model, iterations=cfg["bootstrap_iterations"], seed=cfg["bootstrap_seed"]
-    ):
-        results.append({"benchmark": "tc_str", **row})
+    if benchmark_ids is None or "tc_str" in benchmark_ids:
+        for row in paired_deltas(
+            tc_by_model, iterations=cfg["bootstrap_iterations"], seed=cfg["bootstrap_seed"]
+        ):
+            results.append({"benchmark": "tc_str", **row})
     for left, right in itertools.combinations(model_ids, 2):
-        results.append(
-            {
-                "benchmark": "vistw_mcq",
-                "model_a": left,
-                "model_b": right,
-                **stratified_paired_delta(
-                    vistw_by_model[left],
-                    vistw_by_model[right],
-                    cfg["bootstrap_iterations"],
-                    cfg["bootstrap_seed"],
-                ),
-            }
-        )
-        results.append(
-            {
-                "benchmark": "omnidocbench",
-                "model_a": left,
-                "model_b": right,
-                "status": "N/A",
-                "reason": "官方 evaluator 未保證提供可對齊的 page-level Overall components",
-            }
-        )
-    scores = run_dir / "scores"
-    scores.mkdir(parents=True, exist_ok=True)
-    (scores / "pairwise_comparisons.json").write_text(
-        json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+        if benchmark_ids is None or "vistw_mcq" in benchmark_ids:
+            results.append(
+                {
+                    "benchmark": "vistw_mcq",
+                    "model_a": left,
+                    "model_b": right,
+                    **stratified_paired_delta(
+                        vistw_by_model[left],
+                        vistw_by_model[right],
+                        cfg["bootstrap_iterations"],
+                        cfg["bootstrap_seed"],
+                    ),
+                }
+            )
+        if benchmark_ids is None or "omnidocbench" in benchmark_ids:
+            results.append(
+                {
+                    "benchmark": "omnidocbench",
+                    "model_a": left,
+                    "model_b": right,
+                    "status": "N/A",
+                    "reason": "官方 evaluator 未保證提供可對齊的 page-level Overall components",
+                }
+            )
+    output_path = output_path or run_dir / "scores" / "pairwise_comparisons.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
     return results

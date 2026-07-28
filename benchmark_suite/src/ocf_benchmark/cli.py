@@ -39,7 +39,11 @@ SUITE = Path(__file__).resolve().parents[2]
 REPO_ROOT = SUITE.parent
 
 
-def preflight(cfg: dict[str, Any], strict: bool = True) -> list[str]:
+def preflight(
+    cfg: dict[str, Any],
+    strict: bool = True,
+    benchmark_ids: list[str] | None = None,
+) -> list[str]:
     errors = []
     if platform.system() != "Linux":
         errors.append("只支援 Linux/Ubuntu")
@@ -49,7 +53,10 @@ def preflight(cfg: dict[str, Any], strict: bool = True) -> list[str]:
         if shutil.which(command) is None:
             errors.append(f"找不到 {command}")
     if strict:
-        for command in ("ollama", "docker"):
+        required_commands = ["ollama"]
+        if benchmark_ids is None or "omnidocbench" in benchmark_ids:
+            required_commands.append("docker")
+        for command in required_commands:
             if shutil.which(command) is None:
                 errors.append(f"找不到 {command}")
         try:
@@ -58,7 +65,7 @@ def preflight(cfg: dict[str, Any], strict: bool = True) -> list[str]:
                 errors.append(f"Ollama health HTTP {response.status_code}")
         except requests.RequestException as exc:
             errors.append(f"Ollama 無法連線: {exc}")
-        if shutil.which("docker"):
+        if (benchmark_ids is None or "omnidocbench" in benchmark_ids) and shutil.which("docker"):
             proc = subprocess.run(["docker", "info"], text=True, capture_output=True, check=False)
             if proc.returncode:
                 errors.append("Docker daemon 不可用（OmniDocBench 官方 evaluator 必需）")
@@ -136,7 +143,18 @@ def execute(
     metadata_map: dict[str, dict[str, Any]],
     smoke: bool,
     retry_failed: bool,
+    benchmark_ids: list[str] | None = None,
+    limit: int | None = None,
 ) -> int:
+    selected = [
+        benchmark
+        for benchmark in cfg["benchmarks"]
+        if benchmark_ids is None or benchmark["id"] in benchmark_ids
+    ]
+    if not selected:
+        raise ValueError("至少必須選擇一個 benchmark")
+    if limit is not None and limit < 1:
+        raise ValueError("--limit 必須大於 0")
     target = run_dir / "smoke" if smoke else run_dir
     target.mkdir(parents=True, exist_ok=True)
     legacy = LegacyPostprocessor(REPO_ROOT / "ablation_experiment/postprocess.py")
@@ -148,10 +166,37 @@ def execute(
         cfg["ollama"]["circuit_breaker_poll_seconds"],
     )
     runner = BenchmarkRunner(cfg, client, target, run_dir.name, legacy, retry_failed=retry_failed)
-    combo_status = []
+    status_path = target / "combination_status.json"
+    try:
+        combo_status = json.loads(status_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        combo_status = []
+
+    def update_status(row: dict[str, Any]) -> None:
+        key = (row.get("model"), row.get("benchmark"))
+        combo_status[:] = [
+            old for old in combo_status if (old.get("model"), old.get("benchmark")) != key
+        ]
+        combo_status.append(row)
+        write_json_atomic(status_path, combo_status)
+
     sample_cache: dict[str, list[Any]] = {}
-    for benchmark in cfg["benchmarks"]:
-        sample_cache[benchmark["id"]] = list(_samples(cfg, benchmark))
+    for benchmark in selected:
+        samples = list(_samples(cfg, benchmark))
+        sample_cache[benchmark["id"]] = samples if limit is None else samples[:limit]
+    for model in cfg["models"]:
+        for benchmark in selected:
+            update_status(
+                {
+                    "model": model["id"],
+                    "benchmark": benchmark["id"],
+                    "status": "pending",
+                    "completed": 0,
+                    "total": len(sample_cache[benchmark["id"]]),
+                    "requested_limit": limit,
+                    "reason": "",
+                }
+            )
     manifest_path = run_dir / "manifest.json"
     if manifest_path.exists() and not smoke:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -159,20 +204,28 @@ def execute(
             benchmark_id = next(
                 b["id"] for b in cfg["benchmarks"] if b["dataset"] == dataset["name"]
             )
+            if benchmark_id not in sample_cache:
+                continue
             samples = sample_cache[benchmark_id]
             order = "\n".join(sample.sample_id for sample in samples).encode()
-            dataset["sample_count"] = len(samples)
-            dataset["sample_order_sha256"] = hashlib.sha256(order).hexdigest()
+            dataset.setdefault("executions", []).append(
+                {
+                    "sample_count": len(samples),
+                    "requested_limit": limit,
+                    "sample_order_sha256": hashlib.sha256(order).hexdigest(),
+                    "started_at_utc": datetime.now(timezone.utc).isoformat(),
+                }
+            )
         write_json_atomic(manifest_path, manifest)
-    for model in cfg["models"]:  # model-major；完成三個 benchmark 才 unload
+    for model in cfg["models"]:  # model-major；所選 benchmark 完成後 unload
         metadata = metadata_map[model["id"]]
         try:
             actual_digest = client.model_digest(model["tag"])
         except Exception as exc:
             actual_digest = f"ERROR:{exc}"
         if actual_digest != metadata["digest"]:
-            for benchmark in cfg["benchmarks"]:
-                combo_status.append(
+            for benchmark in selected:
+                update_status(
                     {
                         "model": model["id"],
                         "benchmark": benchmark["id"],
@@ -183,9 +236,8 @@ def execute(
                         ),
                     }
                 )
-            write_json_atomic(target / "combination_status.json", combo_status)
             continue
-        for benchmark in cfg["benchmarks"]:
+        for benchmark in selected:
             try:
                 prompt = (SUITE / benchmark["prompt"]).read_text(encoding="utf-8").strip()
                 status = runner.run_combination(
@@ -193,12 +245,11 @@ def execute(
                 )
             except Exception as exc:  # 組合失敗不可阻止其他 14 組
                 status = {"status": "failed", "reason": f"{type(exc).__name__}: {exc}"}
-            combo_status.append({"model": model["id"], "benchmark": benchmark["id"], **status})
-            write_json_atomic(target / "combination_status.json", combo_status)
+            update_status({"model": model["id"], "benchmark": benchmark["id"], **status})
         try:
             client.unload(model["tag"])
         except Exception as exc:
-            combo_status.append(
+            update_status(
                 {
                     "model": model["id"],
                     "benchmark": "_unload",
@@ -206,7 +257,10 @@ def execute(
                     "reason": str(exc),
                 }
             )
-    failures = [c for c in combo_status if c["status"] == "failed"]
+    selected_ids = {benchmark["id"] for benchmark in selected}
+    failures = [
+        c for c in combo_status if c.get("benchmark") in selected_ids and c["status"] == "failed"
+    ]
     return 1 if failures else 0
 
 
@@ -298,6 +352,11 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("preflight")
     check.add_argument("--non-strict", action="store_true")
+    check.add_argument(
+        "--benchmark",
+        action="append",
+        choices=["omnidocbench", "tc_str", "vistw_mcq"],
+    )
     start = sub.add_parser("init-run")
     start.add_argument("--run-id")
     start.add_argument("--resume", action="store_true")
@@ -307,11 +366,28 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--models-metadata", required=True)
     run.add_argument("--smoke", action="store_true")
     run.add_argument("--retry-failed", action="store_true")
+    run.add_argument(
+        "--benchmark",
+        action="append",
+        choices=["omnidocbench", "tc_str", "vistw_mcq"],
+    )
+    run.add_argument("--limit", type=int)
     score = sub.add_parser("score")
     score.add_argument("--run-dir", required=True)
+    score.add_argument(
+        "--benchmark",
+        action="append",
+        choices=["omnidocbench", "tc_str", "vistw_mcq"],
+    )
     report = sub.add_parser("report")
     report.add_argument("--run-dir", required=True)
     report.add_argument("--models-metadata", required=True)
+    report.add_argument(
+        "--benchmark",
+        action="append",
+        choices=["omnidocbench", "tc_str", "vistw_mcq"],
+    )
+    report.add_argument("--limit", type=int)
     failed = sub.add_parser("mark-failed")
     failed.add_argument("--run-dir", required=True)
     failed.add_argument("--reason", required=True)
@@ -323,7 +399,11 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(args.config)
     cfg["_effective_hash"] = config_hash(cfg)
     if args.command == "preflight":
-        errors = preflight(cfg, strict=not args.non_strict)
+        errors = preflight(
+            cfg,
+            strict=not args.non_strict,
+            benchmark_ids=args.benchmark,
+        )
         if errors:
             print("\n".join(f"[FAIL] {error}" for error in errors), file=sys.stderr)
             print(
@@ -365,13 +445,51 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "execute":
         _, metadata = _load_model_metadata(Path(args.models_metadata))
-        return execute(cfg, Path(args.run_dir), metadata, args.smoke, args.retry_failed)
+        return execute(
+            cfg,
+            Path(args.run_dir),
+            metadata,
+            args.smoke,
+            args.retry_failed,
+            args.benchmark,
+            args.limit,
+        )
     if args.command == "score":
-        score_omnidoc(cfg, Path(args.run_dir))
+        if args.benchmark is None or "omnidocbench" in args.benchmark:
+            score_omnidoc(cfg, Path(args.run_dir))
         return 0
     if args.command == "report":
         _, metadata = _load_model_metadata(Path(args.models_metadata))
-        summary = build_summary(cfg, Path(args.run_dir), metadata)
+        summary = build_summary(cfg, Path(args.run_dir), metadata, sample_limit=args.limit)
+        if args.benchmark:
+            selected = set(args.benchmark)
+            summary = [row for row in summary if row["benchmark"] in selected]
+            label = "_".join(args.benchmark)
+            size = "full" if args.limit is None else f"limit_{args.limit}"
+            output_dir = Path(args.run_dir) / "partial" / label / size
+            output_dir.mkdir(parents=True, exist_ok=True)
+            write_pairwise(
+                cfg,
+                Path(args.run_dir),
+                benchmark_ids=selected,
+                output_path=output_dir / "pairwise_comparisons.json",
+                sample_limit=args.limit,
+            )
+            write_reports(summary, output_dir, source_run_dir=Path(args.run_dir))
+            manifest_path = Path(args.run_dir) / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["status"] = "partial"
+            manifest.setdefault("partial_results", []).append(
+                {
+                    "benchmarks": args.benchmark,
+                    "limit": args.limit,
+                    "path": str(output_dir),
+                    "created_at_utc": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            write_json_atomic(manifest_path, manifest)
+            print(output_dir)
+            return 0
         write_pairwise(cfg, Path(args.run_dir))
         write_reports(summary, Path(args.run_dir))
         manifest_path = Path(args.run_dir) / "manifest.json"

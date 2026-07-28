@@ -14,12 +14,13 @@ if [[ -n "$PID" ]] && kill -0 "$PID" 2>/dev/null; then
   PROCESS_RUNNING=1
 fi
 
-python3 - "$RUN_DIR" "$REQUESTED" "$PID" "$PROCESS_RUNNING" "$LOG_PATH" <<'PY'
+python3 - "$RUN_DIR" "$REQUESTED" "$PID" "$PROCESS_RUNNING" "$LOG_PATH" \
+  "${STATE_DIR}/active_scope.json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-run_text, requested, pid, running_text, log_path = sys.argv[1:]
+run_text, requested, pid, running_text, log_path, scope_path = sys.argv[1:]
 running = running_text == "1"
 run_dir = Path(run_text) if run_text else None
 
@@ -56,13 +57,23 @@ def bar(completed, total, width=24):
 
 
 manifest = read_json(run_dir / "manifest.json") if run_dir else None
+scope = read_json(Path(scope_path)) or {}
+selected_benchmarks = scope.get("benchmarks") or benchmark_order
+combination_total = int(scope.get("combination_total") or 15)
+requested_limit = scope.get("limit")
+all_combinations = [
+    (model, bench)
+    for model in model_order
+    for bench in benchmark_order
+    if bench in selected_benchmarks
+]
 formal_progress = read_json(run_dir / "progress.json") if run_dir else None
 smoke_progress = read_json(run_dir / "smoke/progress.json") if run_dir else None
 formal_rows = read_json(run_dir / "combination_status.json") if run_dir else None
 smoke_rows = read_json(run_dir / "smoke/combination_status.json") if run_dir else None
 
 if formal_progress or formal_rows:
-    stage = "正式推論（15 組正式結果）"
+    stage = f"正式推論（本次 {combination_total} 組）"
     progress = formal_progress
     rows = formal_rows or []
 elif smoke_progress or smoke_rows:
@@ -75,6 +86,7 @@ else:
     rows = []
 
 rows = [row for row in rows if row.get("benchmark") != "_unload"]
+rows = [row for row in rows if row.get("benchmark") in selected_benchmarks]
 completed_combinations = {
     (row.get("model"), row.get("benchmark"))
     for row in rows
@@ -117,6 +129,11 @@ print("=" * 62)
 print(f"Run ID       : {(run_dir.name if run_dir else requested) or '尚未建立'}")
 print(f"背景程序     : {'執行中' if running else '已停止'}" + (f"（PID {pid}）" if pid else ""))
 print(f"目前階段     : {stage}")
+print(
+    "本次範圍     : "
+    + ", ".join(benchmark_names.get(item, item) for item in selected_benchmarks)
+    + f"；每模型 {requested_limit if requested_limit is not None else '完整 split'}"
+)
 if current_model and current_benchmark:
     print(f"目前模型     : {model_names.get(current_model, current_model)}")
     print(f"目前 Benchmark: {benchmark_names.get(current_benchmark, current_benchmark)}")
@@ -132,8 +149,8 @@ else:
     print("目前工作     : 正在下載／驗證資源，尚未開始模型推論")
 
 print(
-    f"15 組進度    : {bar(len(completed_combinations), 15)} "
-    f"{len(completed_combinations)}/15 完成"
+    f"組合進度     : {bar(len(completed_combinations), combination_total)} "
+    f"{len(completed_combinations)}/{combination_total} 完成"
 )
 if updated:
     print(f"最近更新     : {updated}")
