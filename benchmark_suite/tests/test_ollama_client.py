@@ -95,3 +95,27 @@ def test_length_is_completed_and_not_retried(tmp_path):
     assert len(session.calls) == 1
     assert result.status == "completed"
     assert result.truncated
+
+
+def test_model_metadata_excludes_verbose_token_arrays():
+    session = Session(
+        [
+            Response(
+                200,
+                {
+                    "details": {"quantization_level": "Q4_K_M", "family": "qwen"},
+                    "template": "template",
+                    "model_info": {
+                        "general.architecture": "qwen",
+                        "tokenizer.ggml.tokens": ["a", "b"],
+                        "tokenizer.ggml.merges": ["a b"],
+                    },
+                    "tensors": [{"name": "large"}],
+                },
+            )
+        ]
+    )
+    metadata = OllamaClient("http://test", session=session).model_metadata("model")
+    assert metadata["model_info"] == {"general.architecture": "qwen"}
+    assert "tensors" not in metadata["raw_show"]
+    assert len(metadata["full_show_sha256"]) == 64

@@ -312,6 +312,9 @@ def main(argv: list[str] | None = None) -> int:
     report = sub.add_parser("report")
     report.add_argument("--run-dir", required=True)
     report.add_argument("--models-metadata", required=True)
+    failed = sub.add_parser("mark-failed")
+    failed.add_argument("--run-dir", required=True)
+    failed.add_argument("--reason", required=True)
     calibrate = sub.add_parser("calibrate")
     calibrate.add_argument("--split", default="train", choices=["train"])
     calibrate.add_argument("--model", default="qwen3_vl_4b")
@@ -351,6 +354,13 @@ def main(argv: list[str] | None = None) -> int:
                 yaml.safe_dump(canonical_config(cfg), allow_unicode=True, sort_keys=False),
                 encoding="utf-8",
             )
+        else:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["status"] = "running"
+            manifest["ended_at_utc"] = None
+            manifest["resume_count"] = int(manifest.get("resume_count", 0)) + 1
+            manifest.pop("failure_reason", None)
+            write_json_atomic(manifest_path, manifest)
         print(run_dir)
         return 0
     if args.command == "execute":
@@ -369,6 +379,16 @@ def main(argv: list[str] | None = None) -> int:
         manifest["status"] = "completed"
         manifest["ended_at_utc"] = datetime.now(timezone.utc).isoformat()
         write_json_atomic(manifest_path, manifest)
+        return 0
+    if args.command == "mark-failed":
+        manifest_path = Path(args.run_dir) / "manifest.json"
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if manifest.get("status") == "running":
+                manifest["status"] = "failed"
+                manifest["ended_at_utc"] = datetime.now(timezone.utc).isoformat()
+                manifest["failure_reason"] = args.reason
+                write_json_atomic(manifest_path, manifest)
         return 0
     if args.command == "calibrate":
         if args.limit < 1:

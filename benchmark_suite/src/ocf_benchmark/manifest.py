@@ -107,7 +107,7 @@ def create_manifest(
         "effective_config": canonical_config(cfg),
         "random_seed": cfg["seed"],
         "failure_policy": cfg["failure_policy"],
-        "package_lock_sha256": sha256_file(suite / "requirements.lock"),
+        "package_lock_sha256": cfg["package_lock_sha256"],
     }
 
 

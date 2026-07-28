@@ -10,6 +10,8 @@ SMOKE_ONLY=0
 RESUME=0
 RETRY_FAILED=0
 REQUESTED_RUN_ID=""
+RUN_DIR=""
+CURRENT_STAGE="bootstrap"
 
 while (($#)); do
   case "$1" in
@@ -22,6 +24,15 @@ while (($#)); do
     *) echo "未知參數: $1" >&2; exit 2 ;;
   esac
 done
+
+mark_failed_on_exit() {
+  rc=$?
+  if ((rc != 0)) && [[ -n "$RUN_DIR" && -f "${RUN_DIR}/manifest.json" ]]; then
+    "$PYTHON" -m ocf_benchmark.cli --config "$CONFIG" mark-failed \
+      --run-dir "$RUN_DIR" --reason "stage=${CURRENT_STAGE}; exit_code=${rc}" || true
+  fi
+  exit "$rc"
+}
 
 SRV_WORK_DIR="${BENCHMARK_SCRATCH_ROOT:-/srv/ocf-benchmark/work}"
 if [[ -d "$SRV_WORK_DIR" && -w "$SRV_WORK_DIR" ]]; then
@@ -40,6 +51,7 @@ fi
 
 PYTHON="${SUITE_DIR}/.venv/bin/python"
 export PYTHONPATH="${SUITE_DIR}/src"
+trap mark_failed_on_exit EXIT
 if ((DRY_RUN)); then
   "$PYTHON" -m ocf_benchmark.cli --config "$CONFIG" preflight --non-strict
   "$PYTHON" - "$CONFIG" <<'PY'
@@ -52,6 +64,7 @@ PY
   exit 0
 fi
 
+CURRENT_STAGE="preflight"
 "$PYTHON" -m ocf_benchmark.cli --config "$CONFIG" preflight
 
 RUNS_DIR="${BENCHMARK_RUNS_DIR:-${SUITE_DIR}/runs}"
@@ -60,11 +73,15 @@ STATE_DIR="${RUNS_DIR}/.state"
 mkdir -p "$STATE_DIR"
 MODELS_METADATA="${STATE_DIR}/models_metadata.json"
 
+CURRENT_STAGE="prepare_data"
 "$PYTHON" "${SUITE_DIR}/scripts/prepare_data.py" --config "$CONFIG"
+CURRENT_STAGE="prepare_evaluators"
 "$PYTHON" "${SUITE_DIR}/scripts/fetch_official_evaluators.py" --config "$CONFIG"
+CURRENT_STAGE="prepare_models"
 "$PYTHON" "${SUITE_DIR}/scripts/prepare_models.py" \
   --config "$CONFIG" --output "$MODELS_METADATA"
 
+CURRENT_STAGE="init_run"
 init_args=(--config "$CONFIG" init-run --models-metadata "$MODELS_METADATA")
 [[ -n "$REQUESTED_RUN_ID" ]] && init_args+=(--run-id "$REQUESTED_RUN_ID")
 ((RESUME)) && init_args+=(--resume)
@@ -73,6 +90,7 @@ printf '%s\n' "$RUN_DIR" > "${STATE_DIR}/current_run"
 printf '%s\n' "$CONFIG" > "${STATE_DIR}/current_config"
 
 echo "[stage] 15 組 smoke test"
+CURRENT_STAGE="smoke"
 "$PYTHON" -m ocf_benchmark.cli --config "$CONFIG" execute \
   --run-dir "$RUN_DIR" --models-metadata "$MODELS_METADATA" --smoke
 if ((SMOKE_ONLY)); then
@@ -81,13 +99,16 @@ if ((SMOKE_ONLY)); then
 fi
 
 echo "[stage] 15 組正式推論"
+CURRENT_STAGE="inference"
 full_rc=0
 execute_args=(--config "$CONFIG" execute --run-dir "$RUN_DIR" --models-metadata "$MODELS_METADATA")
 ((RETRY_FAILED)) && execute_args+=(--retry-failed)
 "$PYTHON" -m ocf_benchmark.cli "${execute_args[@]}" || full_rc=$?
 
 echo "[stage] 官方評分、bootstrap 與報告"
+CURRENT_STAGE="score"
 "$PYTHON" -m ocf_benchmark.cli --config "$CONFIG" score --run-dir "$RUN_DIR"
+CURRENT_STAGE="report"
 "$PYTHON" -m ocf_benchmark.cli --config "$CONFIG" report \
   --run-dir "$RUN_DIR" --models-metadata "$MODELS_METADATA"
 echo "[done] ${RUN_DIR}"

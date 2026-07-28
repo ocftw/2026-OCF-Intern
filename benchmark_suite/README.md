@@ -88,6 +88,12 @@ Hugging Face 公開資料預設可匿名下載。為避免大量小檔觸發 Xet
 建議先以 `benchmark_suite/.venv/bin/hf auth login` 登入；也可在啟動時提供 `HF_TOKEN`。
 若環境已驗證 Xet 穩定，可明確設定 `HF_HUB_DISABLE_XET=0`。
 
+VisTW parquet 在固定 revision snapshot 下載完成後直接以 `pyarrow` 逐 batch 讀取，
+不透過 Hugging Face `datasets` 的 pickle/fingerprint cache。這避免 Python 3.14 與舊版
+`dill` 內部介面不相容，也保證 smoke／正式推論只使用已固定的本地資料。
+dependency lock SHA256 也是 effective config identity 的一部分；lock 變更會建立新 run，
+不會把不同 Python dependency environment 寫入同一份正式結果。
+
 主 profile 資源不足時，在昂貴正式推論前會失敗。低資源替代方案是另一個完整實驗：
 
 ```bash

@@ -13,6 +13,7 @@ from ocf_benchmark.config import (
 
 def test_schema_and_exactly_15_combinations(suite_dir):
     cfg = load_config(suite_dir / "configs/experiment.yaml")
+    assert len(cfg["package_lock_sha256"]) == 64
     assert len(combinations(cfg)) == 15
     assert [m["id"] for m in cfg["models"]] == [
         "qwen3_vl_4b",

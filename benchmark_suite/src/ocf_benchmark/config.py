@@ -64,6 +64,12 @@ def load_config(path: str | Path) -> dict[str, Any]:
     cfg = _expand_env(raw)
     cfg["_config_path"] = str(path)
     suite_dir = path.parent.parent
+    lock_path = suite_dir / "requirements.lock"
+    if not lock_path.exists():
+        raise ConfigError(f"找不到 dependency lock: {lock_path}")
+    # Dependency resolution 是 effective experiment identity 的一部分；lock 改變時
+    # 不可接續舊 run，即使 YAML 與 prompt 完全相同。
+    cfg["package_lock_sha256"] = hashlib.sha256(lock_path.read_bytes()).hexdigest()
     prompt_hashes = {}
     for benchmark in cfg.get("benchmarks", []):
         prompt_path = Path(benchmark.get("prompt", ""))

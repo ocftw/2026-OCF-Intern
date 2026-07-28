@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,19 @@ sys.path.insert(0, str(SUITE / "src"))
 
 from ocf_benchmark.config import load_config  # noqa: E402
 from ocf_benchmark.ollama_client import OllamaClient  # noqa: E402
+
+
+def cli_quantization(model: str) -> str:
+    proc = subprocess.run(
+        ["ollama", "show", model, "--verbose"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode:
+        return ""
+    match = re.search(r"^\s*quantization\s+(\S+)\s*$", proc.stdout, flags=re.MULTILINE)
+    return match.group(1) if match else ""
 
 
 def main() -> int:
@@ -46,9 +60,14 @@ def main() -> int:
             raise RuntimeError(f"ollama list 找不到已準備模型 {model['tag']}")
         show = client.model_metadata(model["tag"])
         show["digest"] = entry.get("digest") or show.get("digest")
-        show["quantization"] = (entry.get("details") or {}).get("quantization_level") or show.get(
+        quantization = (entry.get("details") or {}).get("quantization_level") or show.get(
             "quantization"
         )
+        if not quantization or str(quantization).lower() == "unknown":
+            quantization = cli_quantization(model["tag"])
+        if not quantization:
+            raise RuntimeError(f"無法解析實際 quantization: {model['tag']}")
+        show["quantization"] = quantization
         show["logical_id"] = model["id"]
         show["third_party_quantization"] = model.get("third_party_quantization", False)
         metadata.append(show)

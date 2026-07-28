@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -144,6 +146,25 @@ class OllamaClient:
         response.raise_for_status()
         data = response.json()
         details = data.get("details") or {}
+        excluded_model_info = {
+            "tokenizer.ggml.merges",
+            "tokenizer.ggml.scores",
+            "tokenizer.ggml.token_type",
+            "tokenizer.ggml.tokens",
+        }
+        model_info = {
+            key: value
+            for key, value in (data.get("model_info") or {}).items()
+            if key not in excluded_model_info
+        }
+        # verbose=true 可能回傳數十 MB tokenizer vocabulary/tensor arrays。這些不是
+        # experiment options；保存完整 response hash，再保留可讀的 show metadata。
+        raw_show = {
+            key: value
+            for key, value in data.items()
+            if key not in {"model_info", "projector_info", "tensors"}
+        }
+        raw_show["model_info"] = model_info
         return {
             "tag": model,
             "digest": data.get("digest") or "",
@@ -153,8 +174,11 @@ class OllamaClient:
             "template": data.get("template") or "",
             "modelfile": data.get("modelfile") or "",
             "parameters": data.get("parameters") or "",
-            "model_info": data.get("model_info") or {},
-            "raw_show": data,
+            "model_info": model_info,
+            "raw_show": raw_show,
+            "full_show_sha256": hashlib.sha256(
+                json.dumps(data, ensure_ascii=False, sort_keys=True).encode()
+            ).hexdigest(),
         }
 
     def model_digest(self, model: str) -> str:
