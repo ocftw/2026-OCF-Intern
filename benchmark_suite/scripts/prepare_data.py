@@ -6,17 +6,29 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import sys
 import tarfile
+import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import requests
+
+# OmniDocBench 有大量小檔。匿名 Xet token endpoint 容易先於檔案下載本身觸發 429；
+# Hugging Face 官方提供此開關以退回一般 HTTP。使用者仍可明確設為 0 啟用 Xet。
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "300")
+
 from huggingface_hub import snapshot_download
 
 SUITE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SUITE / "src"))
 
 from ocf_benchmark.config import load_config, resolve_path  # noqa: E402
+
+DEFAULT_HF_RETRY_DELAYS = (60, 120, 300, 600, 900, 1200, 1800)
 
 
 def safe_extract(archive: tarfile.TarFile, destination: Path) -> None:
@@ -28,6 +40,39 @@ def safe_extract(archive: tarfile.TarFile, destination: Path) -> None:
     # 已在上方逐一驗證 resolved target；不用 Python 3.12 才加入的 filter 參數，
     # 以維持宣告的 Python 3.10+ 相容性。
     archive.extractall(destination)
+
+
+def _retryable_download_error(exc: BaseException) -> bool:
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    if status is not None:
+        return status == 429 or status >= 500
+    # hf-xet 將 token/transport failure 包成 built-in ConnectionError。
+    return isinstance(exc, (ConnectionError, TimeoutError, requests.RequestException))
+
+
+def snapshot_download_with_retry(
+    *,
+    snapshot_fn: Callable[..., Any] = snapshot_download,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    retry_delays: tuple[int, ...] = DEFAULT_HF_RETRY_DELAYS,
+    **kwargs: Any,
+) -> Any:
+    for attempt in range(len(retry_delays) + 1):
+        try:
+            return snapshot_fn(**kwargs)
+        except Exception as exc:
+            if not _retryable_download_error(exc) or attempt == len(retry_delays):
+                raise
+            delay = retry_delays[attempt]
+            print(
+                f"[retry] Hugging Face download attempt {attempt + 1} failed: "
+                f"{type(exc).__name__}: {exc}; {delay}s 後沿用 cache 重試",
+                file=sys.stderr,
+                flush=True,
+            )
+            sleep_fn(delay)
+    raise AssertionError("unreachable")
 
 
 def main() -> int:
@@ -60,11 +105,15 @@ def main() -> int:
             if args.verify_only and not local.exists():
                 raise FileNotFoundError(local)
             if not args.verify_only:
-                snapshot_download(
+                max_workers = int(os.environ.get("HF_DOWNLOAD_MAX_WORKERS", "2"))
+                if max_workers < 1:
+                    raise ValueError("HF_DOWNLOAD_MAX_WORKERS 必須至少為 1")
+                snapshot_download_with_retry(
                     repo_id=benchmark["dataset"],
                     repo_type="dataset",
                     revision=benchmark["revision"],
                     local_dir=local,
+                    max_workers=max_workers,
                 )
             manifest.append(
                 {"id": benchmark["id"], "revision": benchmark["revision"], "snapshot": str(local)}

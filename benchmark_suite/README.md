@@ -82,6 +82,12 @@ sudo ./benchmark_suite/scripts/configure_srv_scratch.sh --cleanup-backup
 後兩者優先。instance stop 後模型與資料會消失，下一次正式執行會重新下載；run manifest、
 checkpoint 與結果不受影響。
 
+Hugging Face 公開資料預設可匿名下載。為避免大量小檔觸發 Xet token endpoint 的 429，
+資料準備預設設定 `HF_HUB_DISABLE_XET=1`、`HF_DOWNLOAD_MAX_WORKERS=2`，並對
+429、HTTP 5xx 與 transport failure 做長退避後沿用 cache 重試。若需要較高 rate limit，
+建議先以 `benchmark_suite/.venv/bin/hf auth login` 登入；也可在啟動時提供 `HF_TOKEN`。
+若環境已驗證 Xet 穩定，可明確設定 `HF_HUB_DISABLE_XET=0`。
+
 主 profile 資源不足時，在昂貴正式推論前會失敗。低資源替代方案是另一個完整實驗：
 
 ```bash
@@ -261,6 +267,8 @@ revision、prompt hash、effective YAML、failure policy 與 lock hash。
   profile；不要在 run 中途改 YAML。
 - `/srv` stop 後被清空：這是預期行為；啟動服務時會重建目錄，模型與 dataset 需重抓，
   持久的 `benchmark_suite/runs/` 仍可依相同 resume identity 續跑。
+- Hugging Face 429：系統會自動退避並沿用已下載 cache；登入 Hugging Face 可取得較高
+  rate limit。不要刪除 `/srv/ocf-benchmark/work/cache` 後重試。
 - 模型 tag 不存在：先用 `ollama pull <tag>` 驗證，或用 YAML／環境變數替換。
 - Omni scoring blocked：查看 `scores/*artifacts/official_stderr.log`，prediction 不會遺失。
 - OOM：正式推論不會自動降參數。停止後改用 constrained profile，形成另一個 run。
