@@ -113,11 +113,12 @@ per-page metadata are in sibling directories.
 ## Common inference contract
 
 Both models use byte-identical prompt text and options from
-`config/benchmark.json`: `num_ctx=65536`, `num_predict=8192`,
+`config/benchmark.json`: `num_ctx=65536`, `num_predict=16384`,
 `temperature=0`, `repeat_penalty=1.0`, `top_k=64`, `top_p=0.95`,
 top-level `think=false`, `stream=false`, batch size 1, and fp16 KV cache.
 Official page images are passed directly without OCR crops, enhancement, or
 re-rasterization.
 
-If a smoke response reaches 8,192 tokens, change the common option once,
-creating a new signature, then rerun all smoke pages for both models.
+A response that reaches the common 16,384-token limit is preserved and reported
+as a scoreable model-under-common-configuration outcome. The limit is never
+raised for only one model.
