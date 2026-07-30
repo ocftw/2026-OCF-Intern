@@ -1,0 +1,16 @@
+{
+  "purpose": "Fixed 10-page v1.6 model-loading diagnostic; never satisfies the 20-page smoke gate",
+  "diagnostic_num_predict": 1024,
+  "pages": [
+    {"index": 355, "filename": "yanbaopptmerge_yanbaoPPT_4275.jpg"},
+    {"index": 390, "filename": "yanbaopptmerge_yanbaoPPT_5620.jpg"},
+    {"index": 508, "filename": "docstructbench_dianzishu_zhongwenzaixian-o.O-61520612.pdf_140.jpg"},
+    {"index": 1182, "filename": "yanbaopptmerge_51e549c0d1a2669ac976409fcf99ce91908b1e0a07f0fc70d92263abf6d07f18.pdf_1.jpg"},
+    {"index": 405, "filename": "yanbaopptmerge_yanbaoPPT_725.jpg"},
+    {"index": 652, "filename": "docstructbench_llm-raw-the-eye-o.O-TFT-Traveller.pdf_6.jpg"},
+    {"index": 273, "filename": "page-035cb436-c01e-41db-b40e-8977678777eb.png"},
+    {"index": 1504, "filename": "color_textbook_zhonggaokao_小学_13.人教新起点英语（4-5年级）_人教新起点四年级英语上册_课本_人教新起点英语4A电子课本_page_091.png"},
+    {"index": 222, "filename": "page-3bed7e71-905d-4f69-aabe-dbff56d7ac4c.png"},
+    {"index": 245, "filename": "page-a8d87718-ab19-4fc0-9ef5-3611ad10f88e.png"}
+  ]
+}

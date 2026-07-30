@@ -1,0 +1,27 @@
+{
+  "dataset_revision": "d386947f7fc3bafdcd756c8485845a2f43a19875",
+  "ground_truth_sha256": "a45cd84b04ad8b793e775089640e6b681209abea33ead54c1828ddca35fae496",
+  "selection": "fixed stratified sample spanning language, layout, hard subsets, tables, formulas, fuzzy scans, handwriting/geometric deformation, and watermarks",
+  "pages": [
+    {"index": 100, "filename": "page-dad79c54-8125-4927-9988-ee1d2a139d7b.png"},
+    {"index": 108, "filename": "page-59ff417b-63b3-40a4-a6ac-8fc2cdf71b5f.png"},
+    {"index": 117, "filename": "page-15cc8cbe-9ce3-4ad8-8737-9159b061ca95.png"},
+    {"index": 22, "filename": "page-4431f432-9e71-46d3-a5ea-4d705ad163a8.png"},
+    {"index": 561, "filename": "yanbaor2_0ef01b835238626f3589faa671abdfb832f2b98987eadad53cb2e35699dcc039.pdf_13.jpg"},
+    {"index": 119, "filename": "page-0c28f48b-33da-489c-bfc1-1fe82e5be68f.png"},
+    {"index": 30, "filename": "page-374e9c4b-6fdb-4176-8ac7-519b86d97e40.png"},
+    {"index": 85, "filename": "page-404e0471-bd71-426a-8e5a-81b8327f88e5.png"},
+    {"index": 393, "filename": "yanbaopptmerge_yanbaoPPT_5885.jpg"},
+    {"index": 671, "filename": "jiaocaineedrop_bde81e42743067b574946698491d7f19.pdf_14.jpg"},
+    {"index": 297, "filename": "eastmoney_7cae1642250a3dbabfef7624d3424ec6e162ae91c8de4acfa89a9779092b0189.pdf_16.jpg"},
+    {"index": 300, "filename": "yanbaopptmerge_PattPatelCh12.pdf_27.jpg"},
+    {"index": 2, "filename": "page-affbb0cc-d616-481d-b493-80ed1ccb5a10.png"},
+    {"index": 0, "filename": "page-d1561665-5359-42fe-920c-d6e3bff81953.png"},
+    {"index": 3, "filename": "page-14cd673f-d86d-45a7-a13e-2b4e1d91c08f.png"},
+    {"index": 1, "filename": "page-bd6eb36e-0856-4d9d-b587-21b4a0209c8b.png"},
+    {"index": 9, "filename": "page-99c0fd2f-608e-479c-9af5-5b012de4f6af.png"},
+    {"index": 175, "filename": "page-2dc37c8b-1547-43dd-8643-fdbecfe5eea8.png"},
+    {"index": 5, "filename": "page-1c08a4a2-8163-44d3-93f0-9449457dbba3.png"},
+    {"index": 8, "filename": "page-0a262e27-b24d-4429-9b21-90563d4fada7.png"}
+  ]
+}

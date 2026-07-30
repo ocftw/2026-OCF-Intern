@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Run-specific review and generated artifacts belong under the EBS output root.
+manual_ai_review_*.json
+results.sqlite
+*.jsonl
+*.log
+outputs/
+reports/

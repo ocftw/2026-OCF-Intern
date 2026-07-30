@@ -1,0 +1,28 @@
+end2end_eval:
+  metrics:
+    text_block:
+      metric:
+      - Edit_dist
+    display_formula:
+      metric:
+      - Edit_dist
+      - CDM
+      cdm_workers: 13
+    table:
+      metric:
+      - TEDS
+      - Edit_dist
+    reading_order:
+      metric:
+      - Edit_dist
+  dataset:
+    dataset_name: end2end_dataset
+    ground_truth:
+      data_path: ./gt/OmniDocBench_v1.6_base.json
+    prediction:
+      data_path: ./data_md/v1.6/chutao__mu936_grpo_800_260328_repro_conda_20260408
+    match_method: quick_match
+    match_workers: 13
+    quick_match_truncated_timeout_sec: 300
+    timeout_fallback_max_chunk_span: 10
+    timeout_fallback_order_penalty: 0.1

@@ -1,0 +1,70 @@
+{
+  "benchmark": {
+    "name": "OmniDocBench",
+    "version": "v1.6",
+    "expected_pages": 1651,
+    "dataset_repo": "opendatalab/OmniDocBench",
+    "dataset_revision": "d386947f7fc3bafdcd756c8485845a2f43a19875",
+    "dataset_revision_title": "add v1.6",
+    "ground_truth_filename": "OmniDocBench.json",
+    "ground_truth_sha256": "a45cd84b04ad8b793e775089640e6b681209abea33ead54c1828ddca35fae496"
+  },
+  "paths": {
+    "dataset_root": "/mnt/nvme/datasets/OmniDocBench_v1.6",
+    "scratch_root": "/mnt/nvme/scratch/omnidocbench_v1_6",
+    "cache_root": "/mnt/nvme/outputs/omnidocbench_v1_6",
+    "output_root": "/opt/ocf-ai/outputs/omnidocbench_v1_6"
+  },
+  "inference": {
+    "endpoint": "http://127.0.0.1:11434",
+    "api": "/api/generate",
+    "stream": false,
+    "batch_size": 1,
+    "timeout_seconds": 1800,
+    "max_attempts": 3,
+    "backoff_seconds": [5, 20],
+    "keep_alive": "10m",
+    "think": false,
+    "options": {
+      "num_ctx": 65536,
+      "num_predict": 16384,
+      "temperature": 0,
+      "repeat_penalty": 1.0,
+      "top_k": 64,
+      "top_p": 0.95
+    },
+    "kv_cache_type": "fp16",
+    "prompt": "請將這一頁文件完整解析為 Markdown。依照原始閱讀順序保留所有可見文字；標題、段落、清單與程式碼請使用適當的 Markdown；表格請以能保留列、欄與合併儲存格結構的 HTML table 輸出；行內公式與獨立公式請使用 LaTeX；不要描述圖片內容，不要加入解釋、前言、結語或 code fence，只輸出解析後的文件內容。",
+    "prompt_source": "user-specified fallback; official OmniDocBench v1.6 commit has no Gemma-specific inference script or universal end-to-end VLM prompt",
+    "input_source": "official_page_image"
+  },
+  "evaluator": {
+    "official_repository": "https://github.com/opendatalab/OmniDocBench",
+    "official_v1_6_commit": "147cd5ac9472002f5751221d390bf00abdbc0d2f",
+    "docker_image": "ghcr.io/zeng-weijun/omnidocbench-eval:repro-ubuntu2204",
+    "docker_digest": "sha256:6116ad72172e763b5c43e963d5efebf2093f2362b975f58156ce4f6c9142e617",
+    "supervisor_config_path": "configs/reproduce_chutao_v16_repro_conda_20260408.yaml",
+    "supervisor_config_sha256": "e15568889c314beca1fe511103dcdf6612af61958ccb13a9e2ae922bd7c31880",
+    "match_method": "quick_match",
+    "match_workers": 4,
+    "cdm_workers": 3,
+    "teds_workers": 3,
+    "quick_match_truncated_timeout_sec": 300,
+    "match_timeout_sec": 420,
+    "timeout_fallback_max_chunk_span": 10,
+    "timeout_fallback_order_penalty": 0.1
+  },
+  "smoke": {
+    "page_count": 20,
+    "max_empty_pages": 1,
+    "max_pipeline_anomaly_pages": 2,
+    "score_model_output_anomalies": true,
+    "policy": "Any response returned by Ollama is a scoreable model-under-common-configuration outcome. Only non-model pipeline failures block."
+  },
+  "versions": {
+    "runner": "1.0.0",
+    "normalization": "odb-nfc-edge-trim-v1",
+    "supplementary_scorer": "odb-supplementary-v1",
+    "postprocess": "outer-whitespace-and-exact-empty-thought-wrapper-v1"
+  }
+}
