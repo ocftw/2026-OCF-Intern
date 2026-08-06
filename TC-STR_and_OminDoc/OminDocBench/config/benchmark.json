@@ -28,10 +28,11 @@
     "options": {
       "num_ctx": 65536,
       "num_predict": 16384,
-      "temperature": 0,
+      "temperature": 1.0,
       "repeat_penalty": 1.0,
       "top_k": 64,
-      "top_p": 0.95
+      "top_p": 0.95,
+      "seed": 20260731
     },
     "kv_cache_type": "fp16",
     "prompt": "請將這一頁文件完整解析為 Markdown。依照原始閱讀順序保留所有可見文字；標題、段落、清單與程式碼請使用適當的 Markdown；表格請以能保留列、欄與合併儲存格結構的 HTML table 輸出；行內公式與獨立公式請使用 LaTeX；不要描述圖片內容，不要加入解釋、前言、結語或 code fence，只輸出解析後的文件內容。",
@@ -46,7 +47,7 @@
     "supervisor_config_path": "configs/reproduce_chutao_v16_repro_conda_20260408.yaml",
     "supervisor_config_sha256": "e15568889c314beca1fe511103dcdf6612af61958ccb13a9e2ae922bd7c31880",
     "match_method": "quick_match",
-    "match_workers": 4,
+    "match_workers": 1,
     "cdm_workers": 3,
     "teds_workers": 3,
     "quick_match_truncated_timeout_sec": 300,
