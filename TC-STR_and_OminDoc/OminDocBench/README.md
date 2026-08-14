@@ -53,57 +53,48 @@ chgrp -R ocfai /opt/ocf-ai/outputs/omnidocbench_reports/code
 
 ---
 
-# OmniDocBench v1.6 reproducible runner
+# OmniDocBench v1.6 可重現執行工具
 
-This directory contains an end-to-end, resumable runner for the **1,651-page
-OmniDocBench v1.6 full set**. It uses host Ollama for batch-size-one VLM
-inference and the pinned official Docker evaluator for `end2end` scoring.
+這個目錄提供一套端對端、可斷點續傳的執行腳本，用來跑完整的 **1,651 頁 OmniDocBench v1.6
+全量測試集**。用主機上的 Ollama 做 batch size 為 1 的 VLM 推論，搭配釘死版本的官方 Docker
+評測器做 `end2end` 計分。
 
-The current workflow has a hard human approval gate:
+目前的流程有一道人工確認的硬性關卡：
 
-1. `./run_smoke.sh` performs preflight, per-model warm-up/GPU checks, the same
-   fixed 20-page inference for every configured model, official smoke
-   evaluation, and smoke reporting.
-2. It never calls the full runner. A valid smoke run remains
-   `SMOKE_REQUIRES_AI_REVIEW` until all outputs have been inspected and a
-   signed-by-content `ai_review.json` plus `READY_FOR_FULL_RUN` manifest exist.
-3. Only after reviewing that report should the operator manually run
-   `./run_full.sh` inside tmux. Re-running the command resumes from EBS
-   checkpoints.
+1. `./run_smoke.sh` 會做 preflight、每個模型的暖機/GPU 檢查、對每個設定好的模型做同樣固定
+   的 20 頁推論、官方 smoke 評測，以及 smoke 報告。
+2. 它不會呼叫全量執行腳本。一次有效的 smoke 執行會停留在 `SMOKE_REQUIRES_AI_REVIEW` 狀態，
+   直到所有輸出都被檢視過，並且產生了內容簽章的 `ai_review.json` 以及 `READY_FOR_FULL_RUN`
+   manifest 為止。
+3. 只有在檢視過那份報告之後，操作者才應該手動在 tmux 裡執行 `./run_full.sh`。重新執行同一
+   條指令會從 EBS 上的 checkpoint 接續執行。
 
-No script creates tmux sessions, background jobs, schedules, or approval files.
+沒有任何腳本會自動建立 tmux session、背景工作、排程，或審核通過的檔案。
 
-For a `config_variants/*.yaml` run only (never the main `config/models.yaml`
-path), `tools/run_model_variant.py full-inference --skip-review` is an
-explicit operator opt-out of this gate: default behavior (no flag) is
-unchanged, and the flag lives entirely in `tools/run_model_variant.py`, which
-is outside `code_hash`'s scope -- using it never changes any run's
-`run_signature`/`run_id`, Gemma or otherwise. Skipping smoke this way also
-means `run_official_evaluator()` (which normally writes each model's
-`immutable_config/{model_id}_official.yaml` as a side effect of the smoke
-evaluation) never runs. `full-inference` always calls
-`ensure_official_configs()` -- a no-op when smoke already created that file,
-but when it didn't (i.e. `--skip-review`), it writes that same
-content-identical, already-hashed file per model itself, so
-`tools/evaluate_model.py` doesn't later fail with "immutable official config
-is missing".
+**只針對 `config_variants/*.yaml` 的執行方式**（絕不適用於主要的 `config/models.yaml` 路
+徑），`tools/run_model_variant.py full-inference --skip-review` 是一個明確的、操作者自己
+選擇跳過這道關卡的選項：不加這個參數時行為完全不變，而且這個參數整個實作都放在
+`tools/run_model_variant.py` 裡，不在 `code_hash` 涵蓋的範圍內——用了它不會改變任何一次執
+行的 `run_signature`/`run_id`，Gemma 那組也不例外。用這種方式跳過 smoke，也代表
+`run_official_evaluator()`（原本會在 smoke 評測時順便寫出每個模型的
+`immutable_config/{model_id}_official.yaml`）不會被呼叫到。`full-inference` 每次都會呼叫
+`ensure_official_configs()`——如果 smoke 已經產生過那個檔案就什麼都不做；但如果沒有（也就
+是用了 `--skip-review`），它會自己把同樣內容、雜湊值也一致的檔案針對每個模型補上，這樣
+`tools/evaluate_model.py` 之後就不會因為找不到「immutable official config」而失敗。
 
-Under the fixed-configuration comparison policy, model-originated outcomes such
-as repetition, empty content, refusal, malformed Markdown, or
-`done_reason=length` are preserved and scored. They remain visible as anomaly
-flags but do not by themselves block the experiment. API/runtime failures,
-wrong inputs or signatures, GPU fallback, missing predictions, and evaluator
-failures remain blocking. Official-evaluator hangs triggered by a specific
-page's degenerate model output are handled explicitly and auditably instead --
-see `tools/mark_eval_timeout_page.py` below.
+在「固定設定比較」的政策下，模型自己造成的結果——像是複讀、空白內容、拒答、格式錯誤的
+Markdown，或是 `done_reason=length`——都會被保留下來並且照樣計分。它們會以 anomaly flag 的
+形式顯示出來，但本身不會擋下這次實驗。API/執行期失敗、輸入或 signature 錯誤、GPU
+fallback、predictions 缺失，以及 evaluator 失敗，這些仍然會擋下實驗。因為某一頁模型輸出退
+化而導致官方 evaluator 卡死的情況，會用明確、可稽核的方式另外處理——請見下方的
+`tools/mark_eval_timeout_page.py`。
 
-## Models
+## 模型
 
-Several independent model sets, each with its own logical-to-local mapping
-file so adding one never changes another's `run_id` (see
-`tools/run_model_variant.py`):
+好幾組各自獨立的模型集合，每一組都有自己的 logical-to-local 對應檔案，這樣新增一組不會動
+到另一組的 `run_id`（詳見 `tools/run_model_variant.py`）：
 
-| Model id | Logical name | Mapping file |
+| 模型 id | 顯示名稱 | 對應檔案 |
 |---|---|---|
 | `gemma4_e2b` | Gemma 4 E2B | `config/models.yaml` |
 | `gemma4_26b_a4b` | Gemma 4 26B A4B | `config/models.yaml` |
@@ -115,87 +106,79 @@ file so adding one never changes another's `run_id` (see
 | `internvl3_5_4b` | InternVL3.5 4B | `config_variants/models_qwen_internvl.yaml` |
 | `internvl3_5_38b` | InternVL3.5 38B | `config_variants/models_qwen_internvl.yaml` |
 
-All nine currently have a complete `official_evaluation_full_1651` result;
-`python3 tools/build_comparison_report.py --list-models` always reflects the
-live state (and explains, for any model missing a result, whether it's still
-running or genuinely failed). The comparison report needs no changes to see a
-new model set -- it auto-discovers every model with a complete result across
-all run directories, Gemma and non-Gemma alike; see "生成多模型比較報告" at the
-top of this file for the exact command.
+九個模型目前都已經有完整的 `official_evaluation_full_1651` 結果；
+`python3 tools/build_comparison_report.py --list-models` 隨時反映即時狀態（如果有模型還沒
+有結果，也會說明是還在跑還是真的失敗了）。比較報告工具本身完全不用改，就能看到新的模型組
+合——它會自動掃描所有 run 目錄底下、任何已經有完整結果的模型，Gemma 跟非 Gemma 都一樣；確
+切指令請見本檔案最上方的「生成多模型比較報告」。
 
-The four `config_variants/model_<id>.yaml` single-model files (each its own
-`run_id`) were the ones used to smoke-test each model individually before the
-combined run; `config_variants/models_qwen_internvl.yaml` is the one actually
-used for the completed full run above and is the one to reuse or extend.
+那四份 `config_variants/model_<id>.yaml` 單一模型的設定檔（各自有自己的 `run_id`），是在合
+併執行之前，用來分別對每個模型做 smoke 測試用的；`config_variants/models_qwen_internvl.yaml`
+才是實際用來完成上面那次全量執行的設定檔，之後要重跑或擴充都應該用這一份。
 
-## Pinned inputs
+## 釘死的輸入版本
 
-- Dataset: `opendatalab/OmniDocBench` revision
-  `d386947f7fc3bafdcd756c8485845a2f43a19875` (`add v1.6`)
-- Full GT SHA-256:
+- 資料集：`opendatalab/OmniDocBench` 版本 `d386947f7fc3bafdcd756c8485845a2f43a19875`
+  （`add v1.6`）
+- 完整 GT 的 SHA-256：
   `a45cd84b04ad8b793e775089640e6b681209abea33ead54c1828ddca35fae496`
-- Expected page/image count: 1,651
-- Official evaluation code: last v1.6 main commit
+- 預期頁數/圖片數：1,651
+- 官方評測程式碼：v1.6 main 分支最後一次 commit
   `147cd5ac9472002f5751221d390bf00abdbc0d2f`
-- Runtime image:
+- 執行用的映像檔：
   `ghcr.io/zeng-weijun/omnidocbench-eval:repro-ubuntu2204@sha256:6116ad72172e763b5c43e963d5efebf2093f2362b975f58156ce4f6c9142e617`
 
-See `VERSION_PINNING.md` for the important 1,355-page embedded-GT discrepancy.
+1,355 頁版本的內嵌 GT 有一個重要的差異，請見 `VERSION_PINNING.md`。
 
-## Paths
+## 路徑
 
-- Code/config: this repository directory
-- Dataset: `/mnt/nvme/datasets/OmniDocBench_v1.6/`
-- Rebuildable scratch: `/mnt/nvme/scratch/omnidocbench_v1_6/`
-- Rebuildable inference cache: `/mnt/nvme/outputs/omnidocbench_v1_6/`
-- Checkpoints, raw responses, predictions, evaluator results, reports:
+- 程式碼/設定：這個 repo 目錄本身
+- 資料集：`/mnt/nvme/datasets/OmniDocBench_v1.6/`
+- 可重建的暫存空間：`/mnt/nvme/scratch/omnidocbench_v1_6/`
+- 可重建的推論快取：`/mnt/nvme/outputs/omnidocbench_v1_6/`
+- Checkpoint、原始回應、predictions、evaluator 結果、報告：
   `/opt/ocf-ai/outputs/omnidocbench_v1_6/<run_id>/`
-- Shared, other-users-can-read-too mirror for report generation only (see
-  above): `/opt/ocf-ai/outputs/omnidocbench_reports/`
+- 給其他使用者也能讀取、專門用來產生報告的共用鏡像（見上方說明）：
+  `/opt/ocf-ai/outputs/omnidocbench_reports/`
 
-The runner writes successful raw responses and predictions directly to EBS
-before committing the SQLite transaction. `/mnt/nvme` is never the sole copy of
-an inference result.
+這個執行腳本會先把成功的原始回應跟 predictions 直接寫進 EBS，再去 commit SQLite
+transaction。`/mnt/nvme` 永遠不會是某次推論結果唯一的一份拷貝。
 
-## Dataset preparation
+## 資料集準備
 
-The downloader is deliberately separate from preflight. It downloads only the
-exact pinned revision, checks the GT hash and each Hugging Face LFS object hash,
-and resumes already verified files:
+下載腳本刻意跟 preflight 分開。它只會下載釘死的那個版本，檢查 GT 的雜湊值跟每一個 Hugging
+Face LFS object 的雜湊值，並且會從已經驗證過的檔案繼續下載：
 
 ```bash
 python3 scripts/fetch_dataset.py
 ```
 
-To inspect the remote immutable image manifest without downloading images:
+想在不下載圖片的情況下檢視遠端的 immutable image manifest：
 
 ```bash
 python3 scripts/fetch_dataset.py --manifest-only
 ```
 
-## Model approval
+## 模型核准
 
-`config/models.yaml` (and any `config_variants/*.yaml` used via
-`tools/run_model_variant.py`) is the authoritative logical-to-local mapping. A
-mapping must contain an exact local Ollama tag and `supervisor_approved: true`.
-Preflight never pulls models and never substitutes a different size, quantized
-build, third-party build, or cloud endpoint. Model digest, architecture,
-quantization, capabilities and context metadata are collected from the local
-Ollama API.
+`config/models.yaml`（以及任何透過 `tools/run_model_variant.py` 使用的
+`config_variants/*.yaml`）是唯一有效的 logical-to-local 對應檔案。一筆對應必須包含一個確
+切的本機 Ollama tag，而且 `supervisor_approved` 要是 `true`。Preflight 絕對不會自己去 pull
+模型，也絕對不會偷偷換成別的尺寸、別的量化版本、第三方轉的版本，或是雲端 API。模型的
+digest、architecture、quantization、capabilities 跟 context 相關的中繼資料，都是直接從本
+機的 Ollama API 取得的。
 
-Not every model has an official Ollama library entry. `internvl3_5_4b` and
-`internvl3_5_38b` are imported from community GGUF quantizations of
-OpenGVLab's InternVL3.5 (no InternVL vision model is in the official Ollama
-library); `tools/fetch_vlm_models.py`
-pulls the official Qwen3-VL tags and does the community GGUF + mmproj import
-+ `ollama create` for InternVL, with sha256-pinned source files. A mapping can
-also declare `expected_min_context` to override the default 65536 floor for a
-model whose real native context is lower (InternVL3.5's is 40960) -- an
-explicit, recorded acknowledgment of that shortfall, not a bug workaround; see
-the `mapping_evidence` field on those two entries for the full trail
-(community-GGUF provenance, disk/import issues hit, context caveat).
+不是每個模型都有官方的 Ollama library 條目。`internvl3_5_4b` 和 `internvl3_5_38b` 是從
+OpenGVLab 的 InternVL3.5 的社群 GGUF 量化版本匯入的（官方 Ollama library 裡沒有任何
+InternVL 的視覺模型）；`tools/fetch_vlm_models.py` 對兩個 Qwen3-VL 的官方 tag 做
+`ollama pull`，對兩個社群 GGUF 的 InternVL3.5 則是下載、驗證 sha256、用雙 `FROM` 的
+Modelfile 去 `ollama create`。一筆對應也可以額外宣告 `expected_min_context`，用來覆寫預設
+的 65536 這個門檻——給那些原生 context 真的比較低的模型用（InternVL3.5 的原生 context 是
+40960）。這是一個明確記錄下來、承認這個限制存在的決定，不是在掩蓋一個 bug；完整的來龍去脈
+（社群 GGUF 的來源、匯入時碰到的硬碟空間問題、context 的但書）都寫在這兩筆對應各自的
+`mapping_evidence` 欄位裡。
 
-## Commands
+## 指令
 
 ```bash
 ./run_tests.sh
@@ -206,57 +189,53 @@ the `mapping_evidence` field on those two entries for the full trail
 ./evaluate_only.sh
 ```
 
-After smoke is explicitly reported as `READY_FOR_FULL_RUN`, the sole full-run
-command is:
+smoke 明確回報成 `READY_FOR_FULL_RUN` 之後，唯一的全量執行指令是：
 
 ```bash
 ./run_full.sh
 ```
 
-`evaluate_only.sh` never calls Ollama. `build_report.sh` reads EBS checkpoints
-and evaluator artifacts without inference.
+`evaluate_only.sh` 完全不會呼叫 Ollama。`build_report.sh` 只讀 EBS 上的 checkpoint 跟
+evaluator 產出的檔案，不會做任何推論。
 
-## `tools/` reference
+## `tools/` 參考
 
-Everything here is read-only with respect to any run's official evaluation
-output unless its own docstring says otherwise.
+這裡的每一個腳本，對任何一次執行的官方評測輸出來說都是唯讀的，除非它自己的 docstring 另外
+說明。
 
-| Script | What it does |
+| 腳本 | 作用 |
 |---|---|
-| `evaluate_model.py` | Runs the pinned official evaluator for one model against an existing full inference run; supports resumable batching (`--batch-size`) with automatic corpus-wide merge once every batch is `done`, and `--eval-timeout-as-empty` to substitute a known-hang page with an empty prediction (see `mark_eval_timeout_page.py`). |
-| `auto_resume_evaluation.py` | Supervises `evaluate_model.py` across the confirmed degenerate-repetition evaluator hang: retries stalled batches, and only auto-registers a page via `mark_eval_timeout_page.py` when the stall matches the exact known signature -- otherwise it stops for manual review. |
-| `mark_eval_timeout_page.py` | Records (or removes) a ground-truth page as a known official-evaluator hang in `evaluation_timeout_pages.json`, with mandatory reason + evidence. Only ever *used* when a run passes `--eval-timeout-as-empty`; the real prediction is never modified. |
-| `fix_shared_report_permissions.py` | One-time-per-new-model chmod fix (see "共用資料維護" above): adds other-read on the GT JSON, dataset images, and every model's `predictions/` files so non-owner users can generate reports. Idempotent, never touches any other file. |
-| `run_model_variant.py` | Runs preflight/smoke/inference-only for an alternate model set defined in a `config_variants/*.yaml` file living outside `config/`, so it gets its own `run_id` without disturbing any other run's signature. `full-inference` supports `--skip-review` (see the hard-approval-gate section above). |
-| `fetch_vlm_models.py` | Fetches/imports the models behind `config_variants/models_qwen_internvl.yaml` and the four single-model `model_<id>.yaml` files: official `ollama pull` for the two Qwen3-VL tags, and download + sha256-verify + two-`FROM`-Modelfile `ollama create` for the two community-GGUF InternVL3.5 imports. `--only <id>` fetches a subset; `--smoke-test` runs a real image through each fetched model afterward and prints the response. |
-| `full_inference_only.py` | Runs the full 1,651-page inference pass without the built-in evaluator call at the end (evaluation is done afterwards via `evaluate_model.py`/`auto_resume_evaluation.py`, which have stall protection the built-in call lacks). |
-| `evaluation_status.py` / `inference_status.py` | Read-only progress snapshots (single-shot or `--watch`) for an in-progress official evaluation / inference run. |
-| `stop_evaluation.py` | Stops any evaluator container left running for a given run/model. |
-| `build_comparison_report.py` | Self-contained, interactively-sortable HTML report: every model with a complete result side by side, page image + ground truth + best/worst/random subset by one baseline model's score, re-sortable in the browser by any model or by any summary-table metric. This is the tool documented at the top of this file. |
-| `build_visual_report.py` | Older, simpler two-model-at-a-time visual report (image + GT + predictions), fixed sort order set at generation time. |
-| `_container_ops.py`, `_merge_driver.py` | Internal helpers (docker container lookup; batch-merge logic run inside the pinned evaluator image) used by the scripts above, not meant to be invoked directly. |
+| `evaluate_model.py` | 對一個已經存在的全量推論結果，執行釘死版本的官方 evaluator；支援可斷點續傳的批次處理（`--batch-size`），每個批次都 `done` 之後會自動合併成整個語料庫的結果，`--eval-timeout-as-empty` 可以把已知會卡死的那一頁換成空白 prediction（見 `mark_eval_timeout_page.py`）。 |
+| `auto_resume_evaluation.py` | 在已確認的「輸出退化導致複讀」的 evaluator 卡死問題上，負責監督 `evaluate_model.py`：重試卡住的批次，只有在卡死的訊號完全符合已知的特徵時，才會自動透過 `mark_eval_timeout_page.py` 登記——否則會停下來讓人工檢視。 |
+| `mark_eval_timeout_page.py` | 把某一頁 ground truth 記錄成（或移除）已知的官方 evaluator 卡死頁面，寫進 `evaluation_timeout_pages.json`，一定要附上理由跟證據。只有在某次執行帶了 `--eval-timeout-as-empty` 時才會真的被套用；真正的 prediction 內容永遠不會被修改。 |
+| `fix_shared_report_permissions.py` | 每次有新模型時要跑一次的權限修正（見上方「共用資料維護」）：對 GT JSON、資料集圖片，以及每個模型的 `predictions/` 檔案開 other-read 權限，讓非擁有者的使用者也能產生報告。可重複執行，不會動到其他任何檔案。 |
+| `run_model_variant.py` | 對一組定義在 `config_variants/*.yaml`（放在 `config/` 之外）裡的替代模型組合，執行 preflight/smoke/inference-only，讓它擁有自己的 `run_id`，不會干擾到其他任何一次執行的 signature。`full-inference` 支援 `--skip-review`（見上方硬性審核關卡那段說明）。 |
+| `fetch_vlm_models.py` | 抓取/匯入 `config_variants/models_qwen_internvl.yaml` 跟四份單一模型 `model_<id>.yaml` 背後的模型：對兩個 Qwen3-VL 的 tag 做官方的 `ollama pull`，對兩個社群 GGUF 的 InternVL3.5 匯入則是下載+驗證 sha256+雙 `FROM` Modelfile 的 `ollama create`。`--only <id>` 可以只抓其中幾個；`--smoke-test` 會在抓完之後真的送一張圖片去問每個模型，並印出回應內容。 |
+| `full_inference_only.py` | 執行完整的 1,651 頁推論，但不含最後內建呼叫 evaluator 那一步（評測是之後另外用 `evaluate_model.py`/`auto_resume_evaluation.py` 做，這兩個工具有內建呼叫沒有的卡死保護）。 |
+| `evaluation_status.py` / `inference_status.py` | 針對正在進行中的官方評測/推論執行，提供唯讀的進度快照（單次或 `--watch`）。 |
+| `stop_evaluation.py` | 停掉某次執行/某個模型還留著在跑的 evaluator container。 |
+| `build_comparison_report.py` | 自成一體、可互動排序的 HTML 報告：把每個有完整結果的模型並排顯示，包含頁面圖片、ground truth，以及依某個基準模型分數抽出的最佳/最差/隨機頁面子集，瀏覽器裡可以依任何一個模型或任何一項總表指標重新排序。這就是本檔案最上方說明的那個工具。 |
+| `build_visual_report.py` | 比較舊版、一次只看兩個模型並排的視覺化報告，產生當下就固定好排序方式。 |
+| `_container_ops.py`、`_merge_driver.py` | 給上面那些腳本用的內部輔助工具（docker container 查詢；在釘死版本的 evaluator image 裡執行的批次合併邏輯），不是設計來直接被呼叫的。 |
 
-## Resume and interruption
+## 斷點續傳與中斷
 
-`results.sqlite` uses `(run_signature, model_id, page_id)` as its key. A page is
-reused only when its status is successful, its image hash is identical, both
-raw and Markdown files exist, and both hashes still match. SIGINT/SIGTERM set an
-interrupting status and stop after the current atomic page. Any config, model
-mapping, prompt/options, dataset pin, evaluator pin, or scorer version change
-creates a different signature and is refused by the existing checkpoint.
+`results.sqlite` 用 `(run_signature, model_id, page_id)` 當 key。一頁只有在狀態是成功、圖
+片的雜湊值一致、raw 跟 Markdown 檔案都存在、而且兩邊的雜湊值都還對得上的情況下，才會被視為
+可以重複使用。SIGINT/SIGTERM 會先設一個「正在中斷」的狀態，等目前這一頁完整處理完才真正停
+下來。任何 config、模型對應、prompt/options、資料集版本、evaluator 版本，或計分器版本的變
+動，都會產生不同的 signature，原本的 checkpoint 會拒絕沿用。
 
-Predictions directories contain only official `.md` files. Raw API objects and
-per-page metadata are in sibling directories.
+Predictions 目錄底下只放官方要的 `.md` 檔案。Raw API 回傳的物件跟每一頁的中繼資料，放在旁
+邊的兄弟目錄裡。
 
-## Common inference contract
+## 共通的推論規格
 
-Every model uses byte-identical prompt text and options from
-`config/benchmark.json`: `num_ctx=65536`, `num_predict=16384`,
-`temperature=1.0`, `repeat_penalty=1.0`, `top_k=64`, `top_p=0.95`,
-`seed=20260731`, top-level `think=false`, `stream=false`, batch size 1, and
-fp16 KV cache. Official page images are passed directly without OCR crops,
-enhancement, or re-rasterization.
+每個模型都用一模一樣的 prompt 文字，以及來自 `config/benchmark.json` 的選項：
+`num_ctx=65536`、`num_predict=16384`、`temperature=1.0`、`repeat_penalty=1.0`、
+`top_k=64`、`top_p=0.95`、`seed=20260731`、最上層的 `think=false`、`stream=false`、batch
+size 為 1，以及 fp16 的 KV cache。官方的頁面圖片是直接傳進去的，不做任何 OCR 裁切、影像增
+強，或重新 rasterize。
 
-A response that reaches the common 16,384-token limit is preserved and reported
-as a scoreable model-under-common-configuration outcome. The limit is never
-raised for only one model.
+某次回應如果碰到共同設定的 16,384 token 上限，會被保留下來，並且回報成「在共同設定下，模
+型本身產生的一個可計分結果」。這個上限不會為了單一模型而調高。
