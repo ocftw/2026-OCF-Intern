@@ -81,10 +81,12 @@ is outside `code_hash`'s scope -- using it never changes any run's
 `run_signature`/`run_id`, Gemma or otherwise. Skipping smoke this way also
 means `run_official_evaluator()` (which normally writes each model's
 `immutable_config/{model_id}_official.yaml` as a side effect of the smoke
-evaluation) never runs, so `full-inference` calls
-`ensure_official_configs()` itself to write that same, content-identical,
-already-hashed file per model -- otherwise `tools/evaluate_model.py` would
-fail later with "immutable official config is missing".
+evaluation) never runs. `full-inference` always calls
+`ensure_official_configs()` -- a no-op when smoke already created that file,
+but when it didn't (i.e. `--skip-review`), it writes that same
+content-identical, already-hashed file per model itself, so
+`tools/evaluate_model.py` doesn't later fail with "immutable official config
+is missing".
 
 Under the fixed-configuration comparison policy, model-originated outcomes such
 as repetition, empty content, refusal, malformed Markdown, or
@@ -97,8 +99,9 @@ see `tools/mark_eval_timeout_page.py` below.
 
 ## Models
 
-Two independent model sets, each with its own logical-to-local mapping file so
-adding one never changes the other's `run_id` (see `tools/run_model_variant.py`):
+Several independent model sets, each with its own logical-to-local mapping
+file so adding one never changes another's `run_id` (see
+`tools/run_model_variant.py`):
 
 | Model id | Logical name | Mapping file |
 |---|---|---|
@@ -181,8 +184,9 @@ quantization, capabilities and context metadata are collected from the local
 Ollama API.
 
 Not every model has an official Ollama library entry. `internvl3_5_4b` and
-`internvl3_5_38b` are imported from community GGUF quantizations (no vision
-model from that vendor is in the official library); `tools/fetch_vlm_models.py`
+`internvl3_5_38b` are imported from community GGUF quantizations of
+OpenGVLab's InternVL3.5 (no InternVL vision model is in the official Ollama
+library); `tools/fetch_vlm_models.py`
 pulls the official Qwen3-VL tags and does the community GGUF + mmproj import
 + `ollama create` for InternVL, with sha256-pinned source files. A mapping can
 also declare `expected_min_context` to override the default 65536 floor for a
