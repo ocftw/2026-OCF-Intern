@@ -1,0 +1,17 @@
+{
+  "models": [
+    {
+      "id": "internvl3_5_4b",
+      "logical_name": "InternVL3.5 4B",
+      "ollama_tag": "internvl3.5:4b-q4_k_m",
+      "supervisor_approved": true,
+      "expected_architecture": "qwen3",
+      "expected_quantization": "Q4_K_M",
+      "expected_total_parameters": "4.4B",
+      "expected_active_parameters": null,
+      "expected_min_context": 40960,
+      "requires_vision": true,
+      "mapping_evidence": "Not an official Ollama entry -- imported locally 2026-08-07 from community GGUF quantizations of OpenGVLab/InternVL3_5-4B: bartowski/OpenGVLab_InternVL3_5-4B-GGUF Q4_K_M (sha256 7c1612b6896ad14caa501238e72afa17a600651d0984225e3ff78b39de86099c, 2716065472 bytes) + mmproj-...-bf16.gguf (sha256 c697d9fb3090cde25cd3c24c1cfad6970ef823e6f3fd072174200034f667d143, 646227360 bytes), combined via a two-FROM Modelfile. Verified via `ollama show` (architecture=qwen3, parameters=4.4B, quantization=Q4_K_M, projector architecture=clip present, capabilities include vision) and a real image->text smoke test against a sample photo (non-empty, non-boilerplate OCR-style response), confirming the mmproj import actually retained vision capability rather than silently loading text-only. Note: `ollama create` repackages the main weight file into a second, differently-hashed blob rather than reusing the source file in place -- the original untouched download (digest above) became an unreferenced orphan and was manually deleted after confirming no manifest referenced it; the active layer is the repackaged blob. Later relocated to /mnt/nvme/scratch/ollama-models-offload (symlinked back) to free root-disk space; re-verified after the move. Native context length is 40960, below the pipeline default floor of 65536 (see omnidocbench/core.py context_at_least_65536 check); expected_min_context above is the supervisor's explicit acknowledgment of that real shortfall (decision recorded 2026-08-07), not a bug workaround -- Ollama accepts num_ctx=65536 without erroring, so the risk is silent quality degradation on unusually long pages rather than a hard failure, to be watched for in the smoke/full-run output rather than assumed away."
+    }
+  ]
+}

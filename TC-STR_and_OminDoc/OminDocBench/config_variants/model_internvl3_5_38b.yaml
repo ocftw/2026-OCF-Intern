@@ -1,0 +1,17 @@
+{
+  "models": [
+    {
+      "id": "internvl3_5_38b",
+      "logical_name": "InternVL3.5 38B",
+      "ollama_tag": "internvl3.5:38b-q4_k_m",
+      "supervisor_approved": true,
+      "expected_architecture": "qwen3",
+      "expected_quantization": "Q4_K_M",
+      "expected_total_parameters": "32.8B",
+      "expected_active_parameters": null,
+      "expected_min_context": 40960,
+      "requires_vision": true,
+      "mapping_evidence": "Not an official Ollama entry -- source is mradermacher/InternVL3_5-38B-GGUF Q4_K_M (sha256 94f43c1e9f2cbd8d192a1b966ad7778e70b9981a5aecb1b4479af59586545774, 19762146688 bytes) + mmproj-Q8_0.gguf (sha256 e36451c93bf11103e3586632ec415d2f7ff68df8e49fa31d994832d263348ff2, 6000453152 bytes), same two-FROM Modelfile pattern as internvl3_5_4b. First `ollama create` attempt failed with ENOSPC on the 96GB EBS root disk (the repackaging step needs roughly another full copy of the main weight in transient space); retried successfully 2026-08-07 after freeing root-disk space (see below). Verified via `ollama show` (architecture=qwen3, parameters=32.8B, quantization=Q4_K_M, projector architecture=clip/5.6B present, capabilities include vision) and a real image->text smoke test against a sample photo (non-empty, non-boilerplate OCR-style response). Context length reports as 40960 (below the pipeline's configured num_ctx=65536); a direct API call with num_ctx=65536 did not error, so this is not a hard blocker, but watch for possible quality degradation on very long pages. As with internvl3_5_4b, the repackaging step left the original untouched download as an unreferenced orphan blob (deleted after confirming no manifest referenced it); the repackaged layer plus the mmproj layer were relocated to /mnt/nvme/scratch/ollama-models-offload (symlinked back) to free root-disk space, and re-verified after the move."
+    }
+  ]
+}

@@ -1386,12 +1386,17 @@ def model_preflight(settings: Settings) -> tuple[dict[str, Any], list[str], list
             continue
         details = show.get("details", {})
         capabilities = capabilities_from_show(show)
-        context_value = show.get("model_info", {}).get("gemma4.context_length")
+        context_value = show.get("model_info", {}).get(f"{spec['expected_architecture']}.context_length")
+        # Default floor matches inference.options.num_ctx in benchmark.json. A model
+        # whose native context is genuinely below that (e.g. InternVL3.5's 40960) can
+        # declare "expected_min_context" in its config_variants entry to acknowledge
+        # the shortfall explicitly, rather than silently failing this check forever.
+        min_context = spec.get("expected_min_context", 65536)
         checks = {
             "architecture": details.get("family") == spec["expected_architecture"],
             "quantization": details.get("quantization_level") == spec["expected_quantization"],
             "vision": "vision" in capabilities,
-            "context_at_least_65536": isinstance(context_value, int) and context_value >= 65536,
+            "context_at_least_65536": isinstance(context_value, int) and context_value >= min_context,
         }
         item["context_length"] = context_value
         item["checks"] = checks

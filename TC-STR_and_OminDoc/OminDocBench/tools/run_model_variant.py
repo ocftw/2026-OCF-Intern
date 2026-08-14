@@ -44,10 +44,12 @@ from omnidocbench.core import (  # noqa: E402
     create_smoke_gt,
     export_raw_jsonl,
     install_signal_handlers,
+    official_config,
     preflight,
     read_json,
     run_model_pages,
     run_official_evaluator,
+    sha256_file,
     unload_model,
     utc_now,
     validate_smoke_selection,
@@ -224,18 +226,51 @@ def cmd_smoke(settings: Settings, _args: argparse.Namespace) -> int:
     return 0 if not all_errors else 2
 
 
-def cmd_full_inference(settings: Settings, _args: argparse.Namespace) -> int:
+def ensure_official_configs(settings: Settings) -> None:
+    """tools/evaluate_model.py requires immutable_config/{model_id}_official.yaml
+    per model, hash-checked against hashes.json's official_run.yaml entry.
+    Normally cmd_smoke's call to run_official_evaluator() writes this as a
+    side effect during smoke. cmd_full_inference never calls
+    run_official_evaluator() (full-inference does inference only, evaluation
+    is a separate later step) -- so a run that goes straight from preflight to
+    full-inference via --skip-review, never having gone through smoke, would
+    reach evaluate_model.py later missing this file entirely. official_config()
+    takes no model_id and is identical for every model, so this just writes
+    that same already-hashed content under each model's expected filename;
+    it does not run the Docker evaluator itself."""
+    target = settings.output_dir / "immutable_config"
+    expected = read_json(target / "hashes.json").get("official_run.yaml")
+    content = official_config(settings)
+    for model in settings.models:
+        path = target / f"{model['id']}_official.yaml"
+        if path.is_file() and sha256_file(path) == expected:
+            continue
+        atomic_write(path, content)
+
+
+def cmd_full_inference(settings: Settings, args: argparse.Namespace) -> int:
     print(f"run_id={settings.run_id}")
     print(f"output_dir={settings.output_dir}")
-    ready = verify_ready_variant(settings)
+    if args.skip_review:
+        # Explicit operator opt-out: this ALWAYS defaults off. Skips both the
+        # smoke/AI-review requirement and the resulting model-digest
+        # cross-check (there is nothing to cross-check against without a
+        # completed smoke run). Only affects config_variants runs invoked via
+        # this flag -- never the default path, never the main config/models.yaml.
+        print("WARNING: --skip-review set; bypassing the smoke/AI-review gate.", file=sys.stderr)
+        ready = None
+    else:
+        ready = verify_ready_variant(settings)
     report = preflight(settings, hash_images=True)
     if report["state"] != "PASS":
         print("PREFLIGHT FAILED:", report["blockers"], file=sys.stderr)
         return 2
-    current_digests = {item["mapping"]["id"]: item.get("digest") for item in report["models"]["models"]}
-    if current_digests != ready.get("model_digests"):
-        print(f"model digests changed since READY smoke: {current_digests} != {ready.get('model_digests')}", file=sys.stderr)
-        return 2
+    ensure_official_configs(settings)
+    if ready is not None:
+        current_digests = {item["mapping"]["id"]: item.get("digest") for item in report["models"]["models"]}
+        if current_digests != ready.get("model_digests"):
+            print(f"model digests changed since READY smoke: {current_digests} != {ready.get('model_digests')}", file=sys.stderr)
+            return 2
 
     pages = report["dataset"]["manifest"]
     warmup_page = select_warmup_page(pages)
@@ -275,6 +310,11 @@ def main() -> int:
     parser.add_argument("command", choices=["preflight", "smoke", "full-inference", "status"])
     parser.add_argument("--models-file", required=True, help="path to an alternate models.yaml-shaped JSON file, kept OUTSIDE config/")
     parser.add_argument("--fast", action="store_true", help="preflight only: skip per-image SHA-256")
+    parser.add_argument(
+        "--skip-review",
+        action="store_true",
+        help="full-inference only: bypass the smoke/AI-review gate (default is still the gate; this is an explicit operator opt-out)",
+    )
     args = parser.parse_args()
 
     settings = load_variant_settings(args.models_file)

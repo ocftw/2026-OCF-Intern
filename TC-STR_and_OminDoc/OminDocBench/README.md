@@ -73,6 +73,19 @@ The current workflow has a hard human approval gate:
 
 No script creates tmux sessions, background jobs, schedules, or approval files.
 
+For a `config_variants/*.yaml` run only (never the main `config/models.yaml`
+path), `tools/run_model_variant.py full-inference --skip-review` is an
+explicit operator opt-out of this gate: default behavior (no flag) is
+unchanged, and the flag lives entirely in `tools/run_model_variant.py`, which
+is outside `code_hash`'s scope -- using it never changes any run's
+`run_signature`/`run_id`, Gemma or otherwise. Skipping smoke this way also
+means `run_official_evaluator()` (which normally writes each model's
+`immutable_config/{model_id}_official.yaml` as a side effect of the smoke
+evaluation) never runs, so `full-inference` calls
+`ensure_official_configs()` itself to write that same, content-identical,
+already-hashed file per model -- otherwise `tools/evaluate_model.py` would
+fail later with "immutable official config is missing".
+
 Under the fixed-configuration comparison policy, model-originated outcomes such
 as repetition, empty content, refusal, malformed Markdown, or
 `done_reason=length` are preserved and scored. They remain visible as anomaly
@@ -94,11 +107,23 @@ adding one never changes the other's `run_id` (see `tools/run_model_variant.py`)
 | `gemma4_e4b` | Gemma 4 E4B | `config_variants/models_e4b_12b_31b.yaml` |
 | `gemma4_12b` | Gemma 4 12B | `config_variants/models_e4b_12b_31b.yaml` |
 | `gemma4_31b` | Gemma 4 31B | `config_variants/models_e4b_12b_31b.yaml` |
+| `qwen3_vl_4b` | Qwen3-VL 4B | `config_variants/models_qwen_internvl.yaml` |
+| `qwen3_vl_32b` | Qwen3-VL 32B | `config_variants/models_qwen_internvl.yaml` |
+| `internvl3_5_4b` | InternVL3.5 4B | `config_variants/models_qwen_internvl.yaml` |
+| `internvl3_5_38b` | InternVL3.5 38B | `config_variants/models_qwen_internvl.yaml` |
 
-All five currently have a complete `official_evaluation_full_1651` result;
+All nine currently have a complete `official_evaluation_full_1651` result;
 `python3 tools/build_comparison_report.py --list-models` always reflects the
 live state (and explains, for any model missing a result, whether it's still
-running or genuinely failed).
+running or genuinely failed). The comparison report needs no changes to see a
+new model set -- it auto-discovers every model with a complete result across
+all run directories, Gemma and non-Gemma alike; see "生成多模型比較報告" at the
+top of this file for the exact command.
+
+The four `config_variants/model_<id>.yaml` single-model files (each its own
+`run_id`) were the ones used to smoke-test each model individually before the
+combined run; `config_variants/models_qwen_internvl.yaml` is the one actually
+used for the completed full run above and is the one to reuse or extend.
 
 ## Pinned inputs
 
@@ -155,6 +180,17 @@ build, third-party build, or cloud endpoint. Model digest, architecture,
 quantization, capabilities and context metadata are collected from the local
 Ollama API.
 
+Not every model has an official Ollama library entry. `internvl3_5_4b` and
+`internvl3_5_38b` are imported from community GGUF quantizations (no vision
+model from that vendor is in the official library); `tools/fetch_vlm_models.py`
+pulls the official Qwen3-VL tags and does the community GGUF + mmproj import
++ `ollama create` for InternVL, with sha256-pinned source files. A mapping can
+also declare `expected_min_context` to override the default 65536 floor for a
+model whose real native context is lower (InternVL3.5's is 40960) -- an
+explicit, recorded acknowledgment of that shortfall, not a bug workaround; see
+the `mapping_evidence` field on those two entries for the full trail
+(community-GGUF provenance, disk/import issues hit, context caveat).
+
 ## Commands
 
 ```bash
@@ -187,7 +223,8 @@ output unless its own docstring says otherwise.
 | `auto_resume_evaluation.py` | Supervises `evaluate_model.py` across the confirmed degenerate-repetition evaluator hang: retries stalled batches, and only auto-registers a page via `mark_eval_timeout_page.py` when the stall matches the exact known signature -- otherwise it stops for manual review. |
 | `mark_eval_timeout_page.py` | Records (or removes) a ground-truth page as a known official-evaluator hang in `evaluation_timeout_pages.json`, with mandatory reason + evidence. Only ever *used* when a run passes `--eval-timeout-as-empty`; the real prediction is never modified. |
 | `fix_shared_report_permissions.py` | One-time-per-new-model chmod fix (see "共用資料維護" above): adds other-read on the GT JSON, dataset images, and every model's `predictions/` files so non-owner users can generate reports. Idempotent, never touches any other file. |
-| `run_model_variant.py` | Runs preflight/smoke/inference-only for an alternate model set defined in a `config_variants/*.yaml` file living outside `config/`, so it gets its own `run_id` without disturbing any other run's signature. |
+| `run_model_variant.py` | Runs preflight/smoke/inference-only for an alternate model set defined in a `config_variants/*.yaml` file living outside `config/`, so it gets its own `run_id` without disturbing any other run's signature. `full-inference` supports `--skip-review` (see the hard-approval-gate section above). |
+| `fetch_vlm_models.py` | Fetches/imports the models behind `config_variants/models_qwen_internvl.yaml` and the four single-model `model_<id>.yaml` files: official `ollama pull` for the two Qwen3-VL tags, and download + sha256-verify + two-`FROM`-Modelfile `ollama create` for the two community-GGUF InternVL3.5 imports. `--only <id>` fetches a subset; `--smoke-test` runs a real image through each fetched model afterward and prints the response. |
 | `full_inference_only.py` | Runs the full 1,651-page inference pass without the built-in evaluator call at the end (evaluation is done afterwards via `evaluate_model.py`/`auto_resume_evaluation.py`, which have stall protection the built-in call lacks). |
 | `evaluation_status.py` / `inference_status.py` | Read-only progress snapshots (single-shot or `--watch`) for an in-progress official evaluation / inference run. |
 | `stop_evaluation.py` | Stops any evaluator container left running for a given run/model. |
