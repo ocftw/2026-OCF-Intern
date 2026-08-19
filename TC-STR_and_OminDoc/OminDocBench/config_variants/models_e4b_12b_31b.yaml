@@ -1,0 +1,40 @@
+{
+  "models": [
+    {
+      "id": "gemma4_e4b",
+      "logical_name": "Gemma 4 E4B",
+      "ollama_tag": "gemma4:e4b-it-qat",
+      "supervisor_approved": true,
+      "expected_architecture": "gemma4",
+      "expected_quantization": "Q4_0",
+      "expected_total_parameters": "7.5B",
+      "expected_active_parameters": null,
+      "requires_vision": true,
+      "mapping_evidence": "Sibling TC_STR/models.yaml (schema_version 1, id gemma4_e4b, exact_tag gemma4:e4b-it-qat, required_quantization Q4_0); verified locally 2026-08-01 via `ollama show gemma4:e4b-it-qat` (architecture=gemma4, parameters=7.5B, quantization=Q4_0, capabilities include vision) and the Ollama /api/tags digest ee665637121887cf3befff38abbb1be4ee117c7db867d97a67e29049ecd7e15f."
+    },
+    {
+      "id": "gemma4_12b",
+      "logical_name": "Gemma 4 12B",
+      "ollama_tag": "gemma4:12b-it-qat",
+      "supervisor_approved": true,
+      "expected_architecture": "gemma4",
+      "expected_quantization": "Q4_0",
+      "expected_total_parameters": "11.9B",
+      "expected_active_parameters": null,
+      "requires_vision": true,
+      "mapping_evidence": "Sibling TC_STR/models.yaml (schema_version 1, id gemma4_12b, exact_tag gemma4:12b-it-qat, required_quantization Q4_0); verified locally 2026-08-01 via `ollama show gemma4:12b-it-qat` (architecture=gemma4, parameters=11.9B, quantization=Q4_0, capabilities include vision) and the Ollama /api/tags digest 38044be4f923e5a55264ed7df4eaac2676651a905f735197c504045140c02bd3."
+    },
+    {
+      "id": "gemma4_31b",
+      "logical_name": "Gemma 4 31B",
+      "ollama_tag": "gemma4:31b-it-qat",
+      "supervisor_approved": true,
+      "expected_architecture": "gemma4",
+      "expected_quantization": "Q4_0",
+      "expected_total_parameters": "30.7B",
+      "expected_active_parameters": null,
+      "requires_vision": true,
+      "mapping_evidence": "Sibling TC_STR/models.yaml (schema_version 1, id gemma4_31b, exact_tag gemma4:31b-it-qat, required_quantization Q4_0); verified locally 2026-08-01 via `ollama show gemma4:31b-it-qat` (architecture=gemma4, parameters=30.7B, quantization=Q4_0, capabilities include vision) and the Ollama /api/tags digest e0812a55773bfeac846b2d605b4d93638b8dfa7119d9587f3d91475afc78185e."
+    }
+  ]
+}

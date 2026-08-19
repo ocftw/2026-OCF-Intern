@@ -1,0 +1,16 @@
+{
+  "models": [
+    {
+      "id": "qwen3_vl_32b",
+      "logical_name": "Qwen3-VL 32B",
+      "ollama_tag": "qwen3-vl:32b",
+      "supervisor_approved": true,
+      "expected_architecture": "qwen3vl",
+      "expected_quantization": "Q4_K_M",
+      "expected_total_parameters": "33.4B",
+      "expected_active_parameters": null,
+      "requires_vision": true,
+      "mapping_evidence": "Official Ollama library tag, pulled and verified locally 2026-08-07 via `ollama show qwen3-vl:32b` (architecture=qwen3vl, parameters=33.4B, quantization=Q4_K_M, capabilities include vision) and a real image->text smoke test against a sample photo (non-empty, non-boilerplate OCR-style response). Blob later relocated to /mnt/nvme/scratch/ollama-models-offload (symlinked back into OLLAMA_MODELS) to free root-disk space; re-verified `ollama show` and the model still resolves correctly after the move."
+    }
+  ]
+}

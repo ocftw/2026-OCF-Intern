@@ -1,0 +1,47 @@
+schema_version: 1
+models:
+  - id: gemma4_e2b
+    logical_name: Gemma 4 E2B
+    exact_tag: gemma4:e2b-it-qat
+    required_quantization: Q4_0
+  - id: gemma4_e4b
+    logical_name: Gemma 4 E4B
+    exact_tag: gemma4:e4b-it-qat
+    required_quantization: Q4_0
+  - id: gemma4_12b
+    logical_name: Gemma 4 12B
+    exact_tag: gemma4:12b-it-qat
+    required_quantization: Q4_0
+  - id: gemma4_26b_a4b
+    logical_name: Gemma 4 26B A4B
+    exact_tag: gemma4:26b-a4b-it-qat
+    required_quantization: Q4_0
+  - id: gemma4_31b
+    logical_name: Gemma 4 31B
+    exact_tag: gemma4:31b-it-qat
+    required_quantization: Q4_0
+  - id: glm_ocr_bf16
+    logical_name: GLM OCR BF16
+    exact_tag: glm-ocr:bf16
+    required_quantization: F16
+    variant_note: "官方 tag 名稱是 bf16；Ollama details 回報 F16，model tensors 含 BF16"
+    completion_policy:
+      mode: allow_nonempty_response_without_terminal_metadata
+      approved_by_user: true
+      approved_at: "2026-07-29"
+      scope: "只放寬 Ollama completion envelope 判定；prompt、圖片、generation options、primary normalization 與 scorer 均不變"
+      rationale: "此模型在 /api/generate、stream=false、think=false 時可回傳有效 OCR response 與 HTTP 200，但回傳 done=false，且缺少 done_reason、prompt_eval_count、eval_count"
+      accepted_limitations:
+        - "無法由 done_reason 或 eval_count 自動判定是否碰到 num_predict"
+        - "無法取得 prompt/eval token 數；相關欄位保留 null，不推估、不補值"
+        - "分數仍可比較；token 使用與自動截斷診斷不可和其他模型等量比較"
+  - id: glm_4_6v_flash_9b
+    logical_name: GLM-4.6V-Flash 9B
+    exact_tag: haervwe/GLM-4.6V-Flash-9B:latest
+    required_quantization: Q4_K_M
+    variant_note: "2026-07-29 經使用者核准的第三方 haervwe/Unsloth conversion；非 Z.ai 官方 Ollama tag"
+  - id: kimi_vl_a3b_q4
+    logical_name: Kimi-VL-A3B-Instruct (Moonlight 16B total / A3B active) Q4
+    exact_tag: hf.co/mradermacher/Kimi-VL-A3B-Instruct-GGUF:Q4_K_M
+    required_quantization: Q4_K_M
+    variant_note: "2026-07-29 經使用者核准的第三方 mradermacher quant；非 Moonshot AI 官方 Ollama tag"

@@ -1,0 +1,27 @@
+{
+  "models": [
+    {
+      "id": "gemma4_e2b",
+      "logical_name": "Gemma 4 E2B",
+      "ollama_tag": "gemma4:e2b-it-qat",
+      "supervisor_approved": true,
+      "expected_architecture": "gemma4",
+      "expected_quantization": "Q4_0",
+      "expected_total_parameters": "4.6B",
+      "expected_active_parameters": null,
+      "requires_vision": true
+    },
+    {
+      "id": "gemma4_26b_a4b",
+      "logical_name": "Gemma 4 26B A4B",
+      "ollama_tag": "gemma4:26b-a4b-it-qat",
+      "supervisor_approved": true,
+      "expected_architecture": "gemma4",
+      "expected_quantization": "Q4_0",
+      "expected_total_parameters": "25.2B",
+      "expected_active_parameters": "3.8B",
+      "requires_vision": true,
+      "mapping_evidence": "Sibling TC_STR/models.yaml and durable TC_STR preflight; verified locally 2026-07-29 with exact digest 2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4."
+    }
+  ]
+}

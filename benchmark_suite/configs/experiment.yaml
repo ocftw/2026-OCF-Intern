@@ -1,0 +1,96 @@
+schema_version: 1
+profile: experiment
+seed: 42
+bootstrap_seed: 2026
+bootstrap_iterations: 10000
+ollama:
+  host: ${OLLAMA_HOST:-http://localhost:11434}
+  endpoint: /api/chat
+  stream: false
+  concurrency: 1
+  keep_alive: 0
+  circuit_breaker_failures: 5
+  circuit_breaker_poll_seconds: 30
+  retry_delays_seconds: [2, 5, 15]
+models:
+  - id: qwen3_vl_4b
+    tag: ${MODEL_QWEN3_VL_4B:-hf.co/Qwen/Qwen3-VL-4B-Instruct-GGUF:Q4_K_M}
+  - id: gemma4_e2b
+    tag: ${MODEL_GEMMA4_E2B:-gemma4:e2b}
+  - id: gemma4_e4b
+    tag: ${MODEL_GEMMA4_E4B:-gemma4:e4b}
+  - id: sea_lion_4b
+    tag: ${MODEL_SEA_LION_4B:-hf.co/mradermacher/Qwen-SEA-LION-v4-4B-VL-GGUF:Q4_K_M}
+    third_party_quantization: true
+    note: "mradermacher 第三方 GGUF 量化，非 SEA-LION 官方量化產物"
+  - id: smolvlm2_2_2b
+    tag: ${MODEL_SMOLVLM2_2_2B:-hf.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M}
+benchmarks:
+  - id: omnidocbench
+    dataset: opendatalab/OmniDocBench
+    revision: aa1ee96d106dbe53d0ae59474d75c6e6d9b53fec
+    release: v1.7
+    split: full
+    expected_samples: 1651
+    prompt: prompts/omnidocbench.txt
+    evaluator:
+      repository: https://github.com/opendatalab/OmniDocBench.git
+      commit: 193627ae9e97d89188468ed1ee3b7a856ff76044
+      docker_image: ghcr.io/zeng-weijun/omnidocbench-eval:repro-ubuntu2204
+      method: end2end
+    options:
+      temperature: 0
+      seed: 42
+      repeat_penalty: 1.0
+      num_ctx: 65536
+      num_predict: 32000
+    model_options:
+      smolvlm2_2_2b:
+        num_ctx: 8192
+        num_predict: 6144
+    timeout_seconds: 1800
+  - id: tc_str
+    dataset: esun-ai/traditional-chinese-text-recogn-dataset
+    revision: 3519b65765169b699cd908e9388ebb2746c75a3b
+    split: test
+    expected_samples: 3706
+    prompt: prompts/tc_str.txt
+    download_url: https://rd-tcsynth.swlab.cloud/download?filename=TC-STR.tar.gz
+    options:
+      temperature: 0
+      seed: 42
+      repeat_penalty: 1.0
+      num_ctx: 4096
+      num_predict: 128
+    timeout_seconds: 180
+  - id: vistw_mcq
+    dataset: miulab/vistw-mcq
+    revision: ea49859040b458a248b51e7a546771ef55c5e838
+    split: test
+    expected_subjects: 21
+    prompt: prompts/vistw_mcq.txt
+    evaluator:
+      repository: https://github.com/TMMMU-Benchmark/evaluation.git
+      commit: 66bf925057e921c91118d24706e8369937e7e0d6
+      official_parser_enabled: false
+    options:
+      temperature: 0
+      seed: 42
+      repeat_penalty: 1.0
+      num_ctx: 8192
+      num_predict: 2048
+    timeout_seconds: 600
+paths:
+  data_dir: ${BENCHMARK_DATA_DIR:-benchmark_suite/data}
+  cache_dir: ${BENCHMARK_CACHE_DIR:-benchmark_suite/cache}
+  runs_dir: ${BENCHMARK_RUNS_DIR:-benchmark_suite/runs}
+failure_policy:
+  max_attempts: 3
+  retry_failed_default: false
+  terminal_failure_in_denominator: true
+  retryable: [transport, timeout, http_5xx]
+smoke_samples_per_combination: 1
+# data_dir/cache_dir 所在的暫存檔案系統需求；可使用會在 stop 後清除的 /srv。
+minimum_free_disk_gb: 80
+# runs_dir 保存 manifest、JSONL predictions 與報告，必須放在持久磁碟。
+minimum_results_free_disk_gb: 20

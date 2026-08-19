@@ -1,3 +1,9 @@
+# Sixhuang branch
+
+此 branch 新增 Sixhuang 的 OCR benchmark 程式，請從
+[`Sixhuang/README.md`](Sixhuang/README.md) 開始。已完成的單一變量消融實驗、重跑腳本與報告整理在
+[`ablation_experiment/README.md`](ablation_experiment/README.md)。原有的 `eval/` 內容保持不變。
+
 # TC-STR OCR 模型評估腳本
 
 用 Ollama 上的三個模型（`qwen2.5vl:3b`、`chandra-ocr-2:latest`、

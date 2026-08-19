@@ -1,4 +1,13 @@
+# Sixhuang benchmark runtime artifacts
+Sixhuang/.venv/
+Sixhuang/data/
+Sixhuang/models/
+Sixhuang/results/
+Sixhuang/checkpoint.json
 __pycache__/
-*.pyc
+*.py[cod]
 eval/results/logs/
 eval/results/RUN_STATUS.txt
+
+# OmniDocBench generated report output (not source, regenerate via tools/build_comparison_report.py)
+TC-STR_and_OminDoc/OminDocBench/*.html

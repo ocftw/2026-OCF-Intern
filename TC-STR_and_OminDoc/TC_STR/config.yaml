@@ -1,0 +1,48 @@
+schema_version: 1
+benchmark:
+  name: TC-STR 7k-word
+  source_url: https://github.com/esun-ai/traditional-chinese-text-recogn-dataset
+  split: test
+  expected_samples: 3706
+paths:
+  dataset: /mnt/nvme/datasets/TC-STR
+  scratch: /mnt/nvme/scratch/tc_str
+  volatile_outputs: /mnt/nvme/outputs/tc_str
+  durable_outputs: /opt/ocf-ai/outputs/tc_str
+ollama:
+  host: http://127.0.0.1:11434
+  endpoint: /api/generate
+  stream: false
+  timeout_seconds: 180
+  max_attempts: 3
+  retry_backoff_seconds: [2, 5]
+  keep_alive: 0
+generation:
+  num_ctx: 65536
+  num_predict: 80
+  temperature: 0
+  repeat_penalty: 1.0
+  top_k: 64
+  top_p: 0.95
+  think: false
+prompt: "你是一個專業的OCR文字辨識引擎。請仔細觀察圖片，只輸出圖片中看到的文字內容（繁體中文為主，若同時有英文或數字也一併輸出），只回傳純文字本身，不要輸出HTML標籤、Markdown或JSON等任何格式化標記，不要加任何解釋、前綴或後綴、標點符號以外的內容，不要翻譯，不要加引號。如果部分文字模糊、傾斜或被遮擋，也要盡量根據字形推斷最可能的字。"
+smoke:
+  sample_count: 20
+  selection_version: tcstr_stratified_v1
+  empty_failure_count: 2
+  pipeline_anomaly_failure_count: 3
+evaluation_policy:
+  version: common_conditions_score_failures_v1
+  output_anomalies_are_scored_model_failures: true
+  terminal_request_failure_prediction: ""
+  hard_blockers:
+    - dataset_or_signature_mismatch
+    - exact_model_mapping_or_vision_failure
+    - no_http_200_model_response
+    - not_100_percent_gpu
+checkpoint:
+  snapshot_every: 25
+versions:
+  scorer: tcstr_common_metrics_v1
+  normalization: nfc_outer_trim_v1
+  supplementary_postprocess: reference_aligned_v1

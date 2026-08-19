@@ -1,0 +1,18 @@
+# 與主實驗完全分離的低資源 profile；結果不可和 experiment profile 混合。
+schema_version: 1
+profile: constrained
+extends: experiment.yaml
+minimum_free_disk_gb: 45
+minimum_results_free_disk_gb: 10
+benchmarks_overrides:
+  omnidocbench:
+    options:
+      temperature: 0
+      seed: 42
+      repeat_penalty: 1.0
+      num_ctx: 16384
+      num_predict: 8192
+    model_options:
+      smolvlm2_2_2b:
+        num_ctx: 8192
+        num_predict: 4096
