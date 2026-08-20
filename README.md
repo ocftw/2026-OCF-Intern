@@ -222,36 +222,61 @@ Docker 設定、多人共用權限與 stop/start 復原步驟，見
 - **想自己重跑** → 每個目錄的 README 都有完整的環境需求與指令。最容易重現的是
   [`ablation_experiment/`](ablation_experiment/)（只需要 Ollama + 一個模型 + TC-STR）。
 - **想知道跑在什麼機器上／想自己開一台** → [INFRASTRUCTURE.md](INFRASTRUCTURE.md)。
+- **想知道要花多少錢、需要多大的卡** → [HARDWARE.md](HARDWARE.md)。含顯存試算、
+  AWS 機型與成本、七套工作站實際報價，以及機房用電與電費分攤的處理方式。
+- **想接手或參與** → [ROADMAP.md](ROADMAP.md)。做了什麼、沒做什麼、你可以從哪裡開始。
 - **想認識做這件事的人** → [CONTRIBUTORS.md](CONTRIBUTORS.md)。
 - **想接續研究** → 見下方〈後續方向〉。
 
 ---
 
-## 後續方向
+## 這只是計畫的一半
 
-實習結束時留下的明確待辦，依價值排序：
+這個實習計畫原本規劃了**兩條並行的研究路線**：
 
-1. **`repeat_penalty` 細部 sweep。** 消融實驗只證明「1.6 明顯有害」，尚未定位最佳值。
-   建議對預設值、1.0、1.1、1.3、1.6 做完整 sweep。
-2. **測試變因之間的交互作用。** OFAT 無法捕捉交互作用，而 prompt × 後處理、
-   `num_predict` × 後處理、prompt × repeat penalty 都有理由懷疑存在交互作用。
-3. **跑完既有的評測系統。** `benchmark_suite/` 的 15 組正式結果與
-   `TC-STR_and_OminDoc/` 的 8 模型 TC-STR、OmniDocBench 全量評測，系統都已就緒但
-   正式數據尚未產出。這是投入產出比最高的一項——程式已經寫完了。
-4. **把消融結論在其他模型上驗證。** 目前結論只在 GLM-OCR Q8 上成立，Gemma 4 與
-   Qwen3-VL 是否有同樣的參數敏感性仍是開放問題。
+| | **路線 A（本 repo）** | **路線 B** |
+|---|---|---|
+| 題目 | 開源 VLM 的繁中 OCR／文件解析**評測** | Gemma 4 台灣領域**微調** |
+| 使用的尺 | TC-STR、OmniDocBench、VisTW-MCQ | TMMLU+、TMLU、TC-Eval |
+| 狀態 | ✅ **完成** | 📋 **僅完成規劃，未執行** |
+
+兩條路線是互補的：**你得先能公平地量，才有資格說微調有沒有效。** 路線 A 的核心發現
+正好說明了路線 B 為什麼困難——如果連 baseline 都測不準，「微調後進步了 3%」就沒有意義。
+
+路線 B 最後沒有人執行，但**規劃文件相當完整**：8 週路線圖、逐行可照跑的 Phase 0
+runbook、雲端從開機到關機的完整指令。我們把它整理出來公開，而不是留在內部硬碟裡。
+
+**這條路線現在是空的，歡迎接手** → [ROADMAP.md](ROADMAP.md)
+
+### 路線 A 還沒做完的部分
+
+依價值排序。**前兩項只需要跑，程式都已經寫完了：**
+
+1. **跑完 [`benchmark_suite/`](benchmark_suite/) 的 15 組正式結果。** 系統已完成可執行，
+   `runs/` 目前是空的。投入產出比最高的一項。
+2. **跑完 [`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/)。** 8 模型 TC-STR、OmniDocBench
+   全量 1,651 頁。
+3. **`repeat_penalty` 細部 sweep。** 消融只證明「1.6 明顯有害」，尚未定位最佳值。
+4. **測試變因之間的交互作用。** OFAT 無法捕捉交互作用，而 prompt × 後處理、
+   `num_predict` × 後處理都有理由懷疑存在。
+5. **把消融結論在其他模型上驗證。** 目前只在 GLM-OCR Q8 上成立，Gemma 4 與 Qwen3-VL
+   是否有同樣的參數敏感性仍是開放問題。
+
+完整的待辦清單、接手指引與**依投入程度分級的參與方式**（從十分鐘到兩個月），
+見 [ROADMAP.md](ROADMAP.md#五如何參與)。
 
 ---
 
 ## 研究團隊
 
-兩位實習生**都不是資訊工程背景**——一位讀人類學，一位讀圖書資訊學。這不是註腳，它直接
-解釋了這個 repo 為什麼長成現在的樣子。
+三位實習生參與，**沒有一位是資訊工程背景**——分別讀人類學、圖書資訊學與地質學。
+這不是註腳，它直接解釋了這個計畫為什麼長成現在的樣子。
 
-| | 背景 | 在這個專案負責什麼 |
+| | 背景 | 在這個計畫負責什麼 |
 |---|---|---|
 | **游聿堂**<br>[@trickster-2005](https://github.com/trickster-2005) | 臺大人類學系，語言學／計算語言學，中研院 Depositar Lab 開放資料實習 | [`eval/`](eval/) — 最早的評測 pipeline、後處理設計、四指標實作、HTML 報告 |
 | **黃以信**<br>[@hyslchs](https://github.com/hyslchs) | 輔大圖書資訊學系，語意檢索與向量資料庫，NSTC 大專生研究計畫 | [`Sixhuang/`](Sixhuang/)、[`ablation_experiment/`](ablation_experiment/)、[`benchmark_suite/`](benchmark_suite/)、[`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/) |
+| **林柏儒** | 臺大地質系，GenAI 落地與本地模型部署、自動化工作流 | 計畫前期的硬體評估與詢價 — [HARDWARE.md](HARDWARE.md) |
 
 AI 評測領域長期缺兩樣東西：**對「測量本身如何被建構」的懷疑**，以及**對「來源與版本」
 的紀律**。這恰好分別是人類學／開放資料治理，與圖書資訊學的核心訓練。
@@ -263,6 +288,11 @@ AI 評測領域長期缺兩樣東西：**對「測量本身如何被建構」的
 **黃以信帶進了後者。** 他建的兩套系統核心不是跑分，是**來源追溯**：每個分數都要能追回
 到確切的 model digest、dataset fingerprint、prompt hash 與 evaluator commit，例外要具名
 核准、第三方量化版本的來源要逐一存證。這在圖資學裡有名字：編目、權威控制、provenance。
+
+**林柏儒帶進的是落地的成本感。** 他實際在本地跑過開源模型，知道顯存不夠會發生什麼事，
+所以由他去試算顯存需求、比較七套機型、向廠商實際詢價。OCF 最後沒有依那份規格採購，
+但那份評估提供了議價與判斷的基準——也成為
+[HARDWARE.md](HARDWARE.md) 這份對其他非營利組織實用的公開參考。
 
 完整背景、逐項產出、工作紀錄與可驗證的工作量統計，見
 **[CONTRIBUTORS.md](CONTRIBUTORS.md)**。
