@@ -191,14 +191,21 @@ concurrency=1）正是承接消融實驗的實證而來——但文件也誠實�
 
 | 項目 | 規格 |
 |---|---|
-| Host | AWS EC2 / Ubuntu 26.04 LTS |
+| Instance | AWS EC2 `g6e.2xlarge` / Ubuntu 26.04 LTS |
 | CPU / RAM | AMD EPYC 7R13（8 vCPU）／61 GiB |
 | GPU | NVIDIA L40S，46 GB VRAM（driver 610.43.02） |
+| 儲存 | 419 GB instance store（會消失）＋ EBS（持久） |
 | Ollama | 0.31.1 |
 | Docker | 29.6.2（OmniDocBench 官方 evaluator 用） |
 
 所有推論 batch size 固定為 1、concurrency 固定為 1、模型依序載入並在階段結束後卸載，
-確保各模型不會互相爭用 VRAM。
+確保各模型不會互相爭用 VRAM；正式推論前必須確認 `ollama ps` 顯示 `100% GPU`，否則
+數字不可用。
+
+完整的主機規格、儲存架構（instance store vs EBS 的取捨與自動掛載實作）、Ollama 與
+Docker 設定、多人共用權限與 stop/start 復原步驟，見
+**[INFRASTRUCTURE.md](INFRASTRUCTURE.md)**。那些配置決策不只是維運細節——它們直接寫進了
+本 repo 兩套 runner 的設計。
 
 ---
 
@@ -214,6 +221,8 @@ concurrency=1）正是承接消融實驗的實證而來——但文件也誠實�
   `benchmark_suite/` → `TC-STR_and_OminDoc/` 的順序讀各目錄 README。
 - **想自己重跑** → 每個目錄的 README 都有完整的環境需求與指令。最容易重現的是
   [`ablation_experiment/`](ablation_experiment/)（只需要 Ollama + 一個模型 + TC-STR）。
+- **想知道跑在什麼機器上／想自己開一台** → [INFRASTRUCTURE.md](INFRASTRUCTURE.md)。
+- **想認識做這件事的人** → [CONTRIBUTORS.md](CONTRIBUTORS.md)。
 - **想接續研究** → 見下方〈後續方向〉。
 
 ---
@@ -234,12 +243,29 @@ concurrency=1）正是承接消融實驗的實證而來——但文件也誠實�
 
 ---
 
-## 貢獻者
+## 研究團隊
 
-| | 負責範圍 |
-|---|---|
-| [@trickster-2005](https://github.com/trickster-2005) | [`eval/`](eval/) — TC-STR 評測 pipeline、後處理設計、四指標實作、HTML 報告，並提出「跨團隊分數不可比」的問題 |
-| [@hyslchs](https://github.com/hyslchs) | [`Sixhuang/`](Sixhuang/)、[`ablation_experiment/`](ablation_experiment/)、[`benchmark_suite/`](benchmark_suite/)、[`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/) — 對照實作、消融實驗設計與執行、兩套可重現評測基礎建設 |
+兩位實習生**都不是資訊工程背景**——一位讀人類學，一位讀圖書資訊學。這不是註腳，它直接
+解釋了這個 repo 為什麼長成現在的樣子。
+
+| | 背景 | 在這個專案負責什麼 |
+|---|---|---|
+| **游聿堂**<br>[@trickster-2005](https://github.com/trickster-2005) | 臺大人類學系，語言學／計算語言學，中研院 Depositar Lab 開放資料實習 | [`eval/`](eval/) — 最早的評測 pipeline、後處理設計、四指標實作、HTML 報告 |
+| **黃以信**<br>[@hyslchs](https://github.com/hyslchs) | 輔大圖書資訊學系，語意檢索與向量資料庫，NSTC 大專生研究計畫 | [`Sixhuang/`](Sixhuang/)、[`ablation_experiment/`](ablation_experiment/)、[`benchmark_suite/`](benchmark_suite/)、[`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/) |
+
+AI 評測領域長期缺兩樣東西：**對「測量本身如何被建構」的懷疑**，以及**對「來源與版本」
+的紀律**。這恰好分別是人類學／開放資料治理，與圖書資訊學的核心訓練。
+
+**游聿堂帶進了前者。** 他寫下的〈為什麼跟別人的結果可能不一樣〉一節，把六個可能原因
+依影響程度排序、並提出可操作的診斷方法——不問「分數是多少」，問「這個測量是怎麼被
+建構出來的」。三週後 18,530 次推論的消融實驗證實了他的排序判斷正確。
+
+**黃以信帶進了後者。** 他建的兩套系統核心不是跑分，是**來源追溯**：每個分數都要能追回
+到確切的 model digest、dataset fingerprint、prompt hash 與 evaluator commit，例外要具名
+核准、第三方量化版本的來源要逐一存證。這在圖資學裡有名字：編目、權威控制、provenance。
+
+完整背景、逐項產出、工作紀錄與可驗證的工作量統計，見
+**[CONTRIBUTORS.md](CONTRIBUTORS.md)**。
 
 兩人的工作原本分別在 `main` 與 `Sixhuang` 分支上進行，已於 2026-08-19 透過
 [PR #1](https://github.com/ocftw/2026-OCF-Intern/pull/1) 合併。**`main` 目前包含全部
