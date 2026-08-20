@@ -1,162 +1,165 @@
 # OCF 2026 AI 暑期實習研究成果
-## 開源視覺語言模型（VLM）的繁體中文 OCR 與文件解析評測
+## 開源視覺語言模型於繁體中文 OCR 與文件解析之評測
 
-本 repo 是[開放文化基金會（OCF）](https://ocf.tw/)2026 年 AI 暑期實習計畫的完整研究
-成果。兩位實習生用**本機 Ollama** 執行開源 VLM，評測它們在繁體中文場景文字辨識與整頁
-文件解析上的表現，並在過程中建立了一套可重現、可稽核的評測基礎建設。
+本專案收錄[開放文化基金會（OCF）](https://ocf.tw/)2026 年 AI 暑期實習計畫的研究成果。
+研究以本機 Ollama 執行開源視覺語言模型（VLM），評測其在繁體中文場景文字辨識與整頁文件
+解析上的表現，並於過程中建立一套可重現、可稽核的評測基礎建設。
 
-實習期間：2026-07-15 ～ 2026-08-14。所有工作已合併至 `main`。
+實習期間為 2026 年 7 月 15 日至 8 月 14 日，全部工作均已合併至 `main` 分支。
 
 ---
 
-## TL;DR — 如果你只有三分鐘
+## 研究摘要
 
-這次實習真正的成果不是「哪個模型比較強」的排行榜，而是一個更根本的發現：
+本研究的主要貢獻並非模型能力的排行榜，而在於評測方法本身：
 
-> **開源 VLM 的 OCR 評測分數，主要由評測設定決定，而不是模型能力。**
-> 同一個模型、同一份 3,706 筆資料，光是調整後處理與生成參數，Exact Match 可以在
-> **0% 到 64.84%** 之間移動。
+> 開源 VLM 的 OCR 評測分數主要取決於評測設定，而非模型能力。在模型與資料完全相同的
+> 條件下，僅調整後處理與生成參數，Exact Match 即可在 **0% 至 64.84%** 之間變動。
 
-這個結論是用一組嚴謹的單變因消融實驗（OFAT）證實的，證據在
-[`ablation_experiment/`](ablation_experiment/)。它直接改變了後半段實習的方向：與其
-繼續累積不可比的分數，不如先把「什麼設定被固定了」變成評測系統的一等公民。後半段的
+上述結論由一組單變因消融實驗（one-factor-at-a-time, OFAT）證實，完整證據保存於
+[`ablation_experiment/`](ablation_experiment/)。研究方向亦因而調整：與其累積彼此不可
+比較的分數，不如將「何種設定已被固定」納入評測系統的核心設計。後半段的
 [`benchmark_suite/`](benchmark_suite/) 與 [`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/)
-就是這個想法的實作。
+即為該構想的實作。
 
 ---
 
 ## 核心發現
 
-以下全部來自同一個模型（GLM-OCR Q8_0 GGUF）、同一份資料（TC-STR test split，
-3,706 筆）、同一台機器。每組實驗**只改一項設定**，其餘維持 baseline 不變。
-所有需要推論的 variant 都完整跑完 3,706 筆，API error 數為 0。
+以下數據均取自同一模型（GLM-OCR Q8_0 GGUF）、同一資料集（TC-STR test split，
+3,706 筆）與同一台主機。每組實驗僅更動一項設定，其餘條件維持 baseline 不變；所有需要
+推論的 variant 均完整執行 3,706 筆，API error 數為 0。
 
-| 實驗（相對 baseline 的唯一改動） | EM | CM | ANLS | F1 | 平均延遲 |
+| 實驗（相對 baseline 的唯一更動） | EM | CM | ANLS | F1 | 平均延遲 |
 |---|---:|---:|---:|---:|---:|
 | Aligned baseline | 47.06% | 76.52% | 54.54% | 59.17% | 0.602 s |
 | 改用 `/api/chat` | 47.06% | 76.52% | 54.54% | 59.17% | 0.582 s |
 | 改用短 prompt | **0.00%** | 79.06% | **0.00%** | 13.56% | 0.594 s |
 | 不指定 `repeat_penalty=1.6` | **64.84%** | **82.46%** | **72.08%** | **76.62%** | 0.583 s |
-| `num_predict` 80 → 25 | 46.03% | 76.34% | 53.29% | 65.07% | **0.293 s** |
+| `num_predict` 由 80 降至 25 | 46.03% | 76.34% | 53.29% | 65.07% | **0.293 s** |
 | 改用最小後處理 | **0.00%** | 76.79% | **0.00%** | 6.88% | 離線重算 |
 | 改用另一套 scorer | 47.87% | 77.63% | 55.02% | 59.96% | 離線重算 |
 
-### 1. `repeat_penalty=1.6` 是最大的單一傷害來源
+### 一、repeat_penalty 對辨識結果的影響
 
-只是不顯式傳入這個參數、回到 Ollama／模型預設值，**EM 就從 47.06% 提升到 64.84%
-（+17.78 個百分點）**，ANLS +17.53 pp。逐題比對是 **779 題由錯轉對、120 題由對轉錯，
-淨增加 659 題完全正確**。這是本次測到最有效的單一改動，而且它完全免費——不換模型、
-不加資料、不增加延遲。
+在其餘條件不變的前提下，僅取消顯式傳入 `repeat_penalty=1.6`、回歸 Ollama 與模型的
+預設值，Exact Match 由 47.06% 上升至 64.84%，增加 17.78 個百分點，ANLS 亦增加
+17.53 個百分點。逐題比對顯示 779 題由錯轉對、120 題由對轉錯，淨增 659 題完全正確。
+就本次實驗而言，取消該參數為效益最高的單一調整，且不涉及更換模型、增補資料或延長
+推論時間。
 
-### 2. EM 掉到 0% 不代表模型認不出字
+### 二、EM 歸零與輸出格式失控的區別
 
-短 prompt 那組 EM 與 ANLS 都是 0.00%，但 **CM（是否包含正確答案）反而是全場最高的
-79.06%**。這個組合說明模型其實把字認出來了，只是在答案後面附加了解釋、Markdown、
-英文分析與 prompt 複誦，導致嚴格比對全滅。
+採用短 prompt 的實驗組 EM 與 ANLS 均為 0.00%，但 CM（預測是否包含正確答案）達
+79.06%，為全部實驗組的最高值。兩項指標的落差顯示模型已辨識出文字，惟於答案之後附加
+解釋、Markdown 標記、英文分析與 prompt 複誦，致使嚴格比對全數失敗。
 
-這也解釋了為什麼**看指標的「形狀」比看單一數字重要**：如果兩份報告呈現「EM/ANLS
-差很多、CM/F1 差不多」，幾乎可以斷定差異來自後處理或輸出格式，而不是辨識能力。
+由此可知，觀察各項指標之間的相對關係，較單一數值更具診斷價值。若兩份報告呈現 EM 與
+ANLS 差距顯著、CM 與 F1 相近的形態，差異來源多半在於後處理或輸出格式，而非辨識能力
+本身。
 
-### 3. 後處理不是細節，是評分能否成立的前提
+### 三、後處理在評分流程中的地位
 
-aligned 後處理修改了 baseline **3,704 / 3,706 筆** raw response。換成最小後處理後，
-同一批 raw response 的 EM 直接歸零。也就是說，現行流程能拿到合理分數，有很大一部分
-要歸功於後處理規則，而不是模型輸出本身就乾淨。
+aligned 後處理修改了 baseline 3,706 筆 raw response 之中的 3,704 筆。同一批 raw
+response 改以最小後處理計分後，EM 隨即歸零。現行流程之所以能取得合理分數，相當程度
+取決於後處理規則，而非模型輸出本身已足夠乾淨。
 
-### 4. `/api/generate` 與 `/api/chat` 完全等價
+### 四、API endpoint 的等價性
 
-3,706 / 3,706 筆 processed prediction **逐字完全相同**，四個指標一模一樣。0.020 秒的
-延遲差距不足以證明何者較快。這條路徑可以從「分數差異的可能原因」清單裡劃掉。
+將 `/api/generate` 改為 `/api/chat` 之後，3,706 筆 processed prediction 逐字相同，
+四項指標亦無變化。平均延遲相差 0.020 秒，不足以據此判定何者較快。endpoint 可自
+「分數差異的可能原因」清單之中排除。
 
-### 5. 評分器本身也會製造差異
+### 五、評分器造成的報告差異
 
-同一批 prediction（**沒有任何一筆改變**），只換 scorer，就多判定 30 題 EM 正確
-（+0.81 pp）。原因是兩套 scorer 對空白／標點的正規化與 CM 的單向／雙向定義不同。
-這是報告差異，不是模型能力提升——**跨團隊比較分數前必須先對齊 scorer**。
+在 prediction 完全未變動的情況下更換 scorer，EM 多判定 30 題正確，增加 0.81 個百分點。
+差異來自兩套 scorer 對空白與標點的正規化方式不同，以及 CM 採單向或雙向判定的定義不同。
+此類差異屬於報告層次，與模型能力無關；跨團隊比較分數之前，應先對齊 scorer。
 
-### 6. 速度與準確度的取捨可以量化
+### 六、輸出長度與延遲的取捨
 
-`num_predict` 從 80 降到 25，平均延遲縮短約 **51%**（0.602 s → 0.293 s），代價是
-EM -1.03 pp、ANLS -1.25 pp。但要注意：被截斷的 prompt 複誦可能反而躲過後處理規則，
-所以這組數字不能單純解讀成「便宜的加速」。
+`num_predict` 由 80 降至 25，平均延遲縮短約 51%（0.602 秒降至 0.293 秒），代價為 EM
+下降 1.03 個百分點、ANLS 下降 1.25 個百分點。惟遭截斷的 prompt 複誦有可能因而避開
+後處理規則，故不宜逕自解讀為低成本的加速手段。
 
-> ⚠️ **解讀限制**：這是 OFAT 單變因主效應分析，各列 delta **不能直接相加**。數字只
-> 代表 GLM-OCR Q8 + TC-STR + 該 Ollama 環境，不保證泛化到其他模型。CM 只檢查是否
-> 包含 ground truth，答案藏在大量雜訊中仍會得分，不應單獨用來判斷 OCR 品質。
+> **解讀限制**：本實驗為 OFAT 單變因主效應分析，各列的 delta 不可直接相加。所有數字
+> 僅代表 GLM-OCR Q8、TC-STR 與當時的 Ollama 環境，未必可推廣至其他模型。CM 僅檢查
+> 預測是否包含 ground truth，答案夾雜於大量雜訊之中仍可得分，不宜單獨用以判斷 OCR
+> 品質。
 
 ---
 
 ## 成果地圖
 
-五個目錄對應實習的五個階段，**依時間順序閱讀最容易理解脈絡**：
+五個目錄對應實習的五個階段，依時間順序閱讀最易掌握脈絡。
 
 ```
-2026-07-15  eval/                 提出問題：為什麼大家分數差那麼多？
-2026-07-16  Sixhuang/             獨立第二套實作，成為對照組
-2026-07-21  ablation_experiment/  ★ 回答問題：3,706 筆 × 7 組單變因實驗
-2026-07-28  benchmark_suite/      把結論制度化：5 模型 × 3 benchmark 無人值守系統
-2026-07-30  TC-STR_and_OminDoc/   規模化：8 模型 OCR + 官方 evaluator 文件解析
+2026-07-15  eval/                 建立評測流程，並提出分數分歧的問題
+2026-07-16  Sixhuang/             獨立實作第二套流程，形成對照組
+2026-07-21  ablation_experiment/  以 3,706 筆 × 7 組單變因實驗回答上述問題
+2026-07-28  benchmark_suite/      將結論制度化：5 模型 × 3 benchmark 無人值守系統
+2026-07-30  TC-STR_and_OminDoc/   擴大規模：8 模型 OCR 與官方 evaluator 文件解析
    ～08-14
 ```
 
-| 目錄 | 作者 | 這是什麼 | 結果數據 |
+| 目錄 | 作者 | 內容 | 結果數據 |
 |---|---|---|---|
-| [`eval/`](eval/) | [@trickster-2005](https://github.com/trickster-2005) | TC-STR 三模型評測 pipeline，含後處理、四指標與互動式 HTML 報告。**提出了本次實習的核心問題** | ✅ `eval/results/report.html`（18.7 MB） |
-| [`Sixhuang/`](Sixhuang/) | [@hyslchs](https://github.com/hyslchs) | 獨立實作的第二套跑分程式，另外納入 HF 合成資料集。它與 `eval/` 的差異（短 prompt、最小後處理、不同 scorer）後來成為消融實驗的三個變因 | ❌ 未進版控，需重跑 |
-| [`ablation_experiment/`](ablation_experiment/) | [@hyslchs](https://github.com/hyslchs) | **★ 本 repo 最重要的成果。** 對齊兩套流程後，做 7 組 OFAT 單變因消融，共 18,530 次推論 | ✅ 完整（見下方說明） |
-| [`benchmark_suite/`](benchmark_suite/) | [@hyslchs](https://github.com/hyslchs) | 可長時間無人值守、append-only 斷點續跑的評測系統。5 模型 × 3 benchmark（OmniDocBench／TC-STR／VisTW-MCQ）= 15 組正式結果 | ❌ 系統完成，正式結果未產出 |
-| [`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/) | [@hyslchs](https://github.com/hyslchs) | 規模最大的一套。TC-STR 8 個模型；OmniDocBench v1.6 全量 1,651 頁，用**釘死版本的官方 Docker evaluator** 計分，另有 9 個模型設定與多模型比較報告工具 | ❌ 結果保存在 EC2 的 EBS 上，未進版控 |
+| [`eval/`](eval/) | [@trickster-2005](https://github.com/trickster-2005) | TC-STR 三模型評測流程，含後處理、四項指標與互動式 HTML 報告；本次實習的核心問題即由此提出 | 已進版控 |
+| [`Sixhuang/`](Sixhuang/) | [@hyslchs](https://github.com/hyslchs) | 獨立實作的第二套跑分程式，另納入 Hugging Face 合成資料集。與 `eval/` 之間的三項差異（短 prompt、最小後處理、不同 scorer）後續成為消融實驗的受測變因 | 未進版控 |
+| [`ablation_experiment/`](ablation_experiment/) | [@hyslchs](https://github.com/hyslchs) | **本專案最重要的成果。** 對齊兩套流程後執行 7 組 OFAT 單變因消融，合計 18,530 次推論 | 已進版控，完整 |
+| [`benchmark_suite/`](benchmark_suite/) | [@hyslchs](https://github.com/hyslchs) | 可長時間無人值守、append-only 斷點續跑的評測系統。5 模型 × 3 benchmark（OmniDocBench／TC-STR／VisTW-MCQ），共 15 組正式結果 | 系統已完成，正式結果未產出 |
+| [`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/) | [@hyslchs](https://github.com/hyslchs) | 規模最大的一套。TC-STR 涵蓋 8 個模型；OmniDocBench v1.6 全量 1,651 頁，以釘死版本的官方 Docker evaluator 計分，另備 9 個模型設定與多模型比較報告工具 | 保存於 EC2 的 EBS，未進版控 |
 
-### 關於「結果數據」欄
+### 結果數據的保存狀況
 
-這點對後續接手的人很重要：**大部分實驗的原始結果不在這個 repo 裡。**
+接手研究者須留意，多數實驗的原始結果並未收錄於本專案。
 
-repo 內實際保存的結果只有兩份：
+版控之內實際保存的結果僅有兩份：
 
-- `eval/results/report.html` — trickster 的三模型評測報告，自包含 HTML，直接開啟即可。
-- `ablation_experiment/results/` — 消融實驗的完整成果，包含
-  [`summary.json`](ablation_experiment/results/summary.json)（機器可讀的七組彙總）、
+- `eval/results/report.html`，三模型評測報告，為自包含 HTML，可直接開啟。
+- `ablation_experiment/results/`，消融實驗的完整成果，包含
+  [`summary.json`](ablation_experiment/results/summary.json)（七組結果的機器可讀彙總）、
   [`run_manifest.json`](ablation_experiment/results/run_manifest.json)（模型、prompt、
   options 與資料 fingerprint）、
   [`dataset_manifest.json`](ablation_experiment/results/dataset_manifest.json)（3,706 張
-  圖片的順序、ground truth 與 SHA-256）以及
+  圖片的順序、ground truth 與 SHA-256），以及
   [`ablation_report.html`](ablation_experiment/results/ablation_report.html)（完整互動
   報告與逐題差異案例）。
 
-`benchmark_suite/` 與 `TC-STR_and_OminDoc/` 交付的是**執行系統本身**，不是結果。它們
-的正式輸出寫在執行主機（AWS EC2）的持久磁碟上，未隨 repo 散布。這是刻意的設計：兩者
-都要求正式結果必須連同 model digest、dataset fingerprint、evaluator commit 與
-effective config 一起保存，否則不具可信度。逐筆 CSV 與 raw response 體積也很大
-（消融實驗光是逐筆 CSV 就約 17 MB）。
+`benchmark_suite/` 與 `TC-STR_and_OminDoc/` 交付的是執行系統，而非結果。兩者的正式
+輸出寫入執行主機（AWS EC2）的持久磁碟，未隨專案散布，屬於刻意的設計：兩套系統均要求
+正式結果必須連同 model digest、dataset fingerprint、evaluator commit 與 effective
+config 一併保存，否則不具可信度。逐筆 CSV 與 raw response 的體積亦相當可觀，消融實驗
+的逐筆 CSV 即約 17 MB。
 
-如果你要接手，**這些系統都可以重跑並產生等價輸出**——這正是它們把所有設定釘死的目的。
+兩套系統均可重新執行並產生等價輸出，亦為其將所有設定釘死的目的所在。
 
 ---
 
-## 這套評測基礎建設解決了什麼
+## 評測基礎建設的設計原則
 
-後半段的兩套系統是消融實驗結論的直接產物。既然分數如此容易被設定影響，評測系統就
-必須讓「設定」無法被偷偷改動。它們共同的設計原則：
+後半段的兩套系統承接自消融實驗的結論。既然分數易受設定影響，評測系統即須確保設定無法
+被隱蔽地更動。兩者共同遵循的原則如下：
 
-- **設定進入身分識別。** resume key／run signature 包含 config hash、實際 model
-  digest、dataset revision、prompt hash 與 dependency lock SHA256。任何一項不同，
-  就是另一次實驗，不會混入舊結果。
-- **失敗要看得見，不要被補起來。** 模型自己造成的空輸出、拒答、重複、格式錯誤與
-  `done_reason=length` 全部保留並照樣計分，只標成 anomaly。只有非模型因素的工程錯誤
-  （資料 signature 不符、模型載不起來、非 100% GPU、evaluator 失敗）才會擋下評測。
-- **不用自製分數頂替官方分數。** OmniDocBench 若官方 evaluator 失敗，prediction 保留、
-  scoring 明確標成 `blocked`，絕不改用近似值。
-- **官方指標與診斷指標分區。** EM／CM／ANLS／F1 在 OmniDocBench 報告中明確標為
-  「非官方 leaderboard 指標」，不與官方 Edit Distance／TEDS／CDM 混用。
-- **raw response 永久保存**，主評分不使用依模型客製的清理規則。
-- **例外要留紀錄。** 例如 GLM OCR BF16 在 Ollama 會回傳有效文字但 `done=false` 且缺
-  token metadata，這個豁免被明文記錄在
+- **設定納入身分識別**：resume key 與 run signature 包含 config hash、實際 model
+  digest、dataset revision、prompt hash 與 dependency lock SHA256，其中任一項不同即
+  視為另一次實驗，不與舊結果混用。
+- **失敗必須可見，不得補齊**：模型自身造成的空輸出、拒答、重複、格式錯誤與
+  `done_reason=length` 一律保留並照常計分，僅標示為 anomaly；唯有非模型因素的工程
+  錯誤（資料 signature 不符、模型無法載入、非 100% GPU、evaluator 失敗）才會擋下評測。
+- **不以自製分數頂替官方分數**：OmniDocBench 的官方 evaluator 失敗時，prediction 保留、
+  scoring 明確標為 `blocked`，不改用近似值。
+- **官方指標與診斷指標分區**：EM、CM、ANLS、F1 於 OmniDocBench 報告中明確標示為
+  「非官方 leaderboard 指標」，不與官方 Edit Distance、TEDS、CDM 混用。
+- **raw response 永久保存**，主評分不採用依模型客製的清理規則。
+- **例外必須留下紀錄**：GLM OCR BF16 於 Ollama 會回傳有效文字但 `done=false` 且缺少
+  token metadata，該項豁免明文記載於
   [`PROTOCOL_EXCEPTIONS.md`](TC-STR_and_OminDoc/TC_STR/PROTOCOL_EXCEPTIONS.md)，並註明
   其 token 效率不可與其他模型等量比較。
 
-`benchmark_suite/` 的固定推論設定（`temperature=0`、`seed=42`、**`repeat_penalty=1.0`**、
-concurrency=1）正是承接消融實驗的實證而來——但文件也誠實註明：`repeat_penalty=1.0`
-是為了公平與可重現而選的控制值，**不代表已證明它是所有模型的最佳值**。
+`benchmark_suite/` 的固定推論設定（`temperature=0`、`seed=42`、`repeat_penalty=1.0`、
+concurrency=1）承接自消融實驗的實證。文件亦一併註明，`repeat_penalty=1.0` 係為公平與
+可重現而選定的控制值，並非已證明為所有模型的最佳值。
 
 ---
 
@@ -164,155 +167,148 @@ concurrency=1）正是承接消融實驗的實證而來——但文件也誠實�
 
 ### 資料集
 
-| 資料集 | 內容 | 規模 | 用於 |
+| 資料集 | 內容 | 規模 | 使用於 |
 |---|---|---|---|
-| [TC-STR 7k-word](https://github.com/esun-ai/traditional-chinese-text-recogn-dataset) | 繁體中文場景文字辨識（招牌、看板等 crop） | test split 3,706 張 | 全部四個 OCR 實驗 |
-| [OmniDocBench](https://huggingface.co/datasets/opendatalab/OmniDocBench) | 整頁文件解析（文字／表格／公式／閱讀順序） | full set 1,651 頁 | `TC-STR_and_OminDoc/`（v1.6，revision `d386947f`）、`benchmark_suite/`（v1.7，revision `aa1ee96d`） |
+| [TC-STR 7k-word](https://github.com/esun-ai/traditional-chinese-text-recogn-dataset) | 繁體中文場景文字辨識（招牌、看板等 crop） | test split 3,706 張 | 四項 OCR 實驗全部 |
+| [OmniDocBench](https://huggingface.co/datasets/opendatalab/OmniDocBench) | 整頁文件解析（文字、表格、公式、閱讀順序） | full set 1,651 頁 | `TC-STR_and_OminDoc/`（v1.6，revision `d386947f`）、`benchmark_suite/`（v1.7，revision `aa1ee96d`） |
 | [VisTW-MCQ](https://huggingface.co/datasets/miulab/vistw-mcq) | 繁體中文視覺選擇題 | 21 subjects 全部 test | `benchmark_suite/` |
 | [ZihCiLin/traditional-chinese-ocr-synthetic](https://huggingface.co/datasets/ZihCiLin/traditional-chinese-ocr-synthetic) | 繁中 OCR 合成資料 | `test_random`、`test_semantic` | `Sixhuang/` |
 
 ### 模型
 
-橫跨實習的五個階段，累計評測或設定過的開源 VLM：
+橫跨五個階段，累計評測或設定過的開源 VLM 如下：
 
 - **Gemma 4 系列**（QAT Q4_0）：E2B、E4B、12B、26B-A4B、31B
-- **Qwen 系列**：Qwen2.5-VL 3B、Qwen3-VL 4B／32B
+- **Qwen 系列**：Qwen2.5-VL 3B、Qwen3-VL 4B 與 32B
 - **GLM 系列**：GLM-OCR Q8_0 GGUF、GLM-OCR BF16、GLM-4.6V-Flash 9B
 - **InternVL3.5**：4B、38B（Q4_K_M）
 - **其他**：Kimi-VL-A3B-Instruct、SmolVLM2 2.2B、Qwen-SEA-LION v4 4B-VL、chandra-ocr-2
 
-第三方 GGUF 量化版本（非模型原廠發布）的來源、風險與核准紀錄，逐一記錄在
-[`MODEL_CANDIDATES.md`](TC-STR_and_OminDoc/TC_STR/MODEL_CANDIDATES.md)。這點在評測
-報告中經常被忽略，但它直接影響結果是否可歸因到原始模型。
+第三方 GGUF 量化版本（非模型原廠發布）的來源、風險與核准紀錄，逐一記載於
+[`MODEL_CANDIDATES.md`](TC-STR_and_OminDoc/TC_STR/MODEL_CANDIDATES.md)。相關資訊於
+評測報告中經常遭到忽略，卻直接影響結果能否歸因至原始模型。
 
 ### 執行環境
 
-後期實驗的主機（`TC-STR_and_OminDoc/` 建立與驗證期間，2026-07-29 ～ 07-30）：
+後期實驗所用主機（`TC-STR_and_OminDoc/` 建立與驗證期間，2026-07-29 至 07-30）：
 
 | 項目 | 規格 |
 |---|---|
-| Instance | AWS EC2 `g6e.2xlarge` / Ubuntu 26.04 LTS |
-| CPU / RAM | AMD EPYC 7R13（8 vCPU）／61 GiB |
+| Instance | AWS EC2 `g6e.2xlarge`／Ubuntu 26.04 LTS |
+| CPU 與 RAM | AMD EPYC 7R13（8 vCPU）／61 GiB |
 | GPU | NVIDIA L40S，46 GB VRAM（driver 610.43.02） |
-| 儲存 | 419 GB instance store（會消失）＋ EBS（持久） |
+| 儲存 | 419 GB instance store（不跨 stop/start 保留）與 EBS（持久） |
 | Ollama | 0.31.1 |
-| Docker | 29.6.2（OmniDocBench 官方 evaluator 用） |
+| Docker | 29.6.2（供 OmniDocBench 官方 evaluator 使用） |
 
-所有推論 batch size 固定為 1、concurrency 固定為 1、模型依序載入並在階段結束後卸載，
-確保各模型不會互相爭用 VRAM；正式推論前必須確認 `ollama ps` 顯示 `100% GPU`，否則
-數字不可用。
+所有推論的 batch size 與 concurrency 均固定為 1，模型依序載入並於階段結束後卸載，以免
+互相爭用 VRAM；正式推論之前必須確認 `ollama ps` 顯示 `100% GPU`，否則所得數字不可採用。
 
-完整的主機規格、儲存架構（instance store vs EBS 的取捨與自動掛載實作）、Ollama 與
-Docker 設定、多人共用權限與 stop/start 復原步驟，見
-**[INFRASTRUCTURE.md](INFRASTRUCTURE.md)**。那些配置決策不只是維運細節——它們直接寫進了
-本 repo 兩套 runner 的設計。
+完整的主機規格、儲存架構、Ollama 與 Docker 設定、多人共用權限及 stop/start 復原步驟，
+詳見 [INFRASTRUCTURE.md](INFRASTRUCTURE.md)。上述配置決策並非單純的維運細節，而是直接
+寫入了兩套 runner 的設計之中。
 
 ---
 
-## 從哪裡開始讀
+## 閱讀指引
 
-- **只想知道結論** → 本頁〈核心發現〉，接著看
-  [`ablation_experiment/RESULTS.md`](ablation_experiment/RESULTS.md)。
-- **想看逐題證據** → 用瀏覽器開
-  [`ablation_experiment/results/ablation_report.html`](ablation_experiment/results/ablation_report.html)
-  與 [`eval/results/report.html`](eval/results/report.html)（都是自包含檔案，不需
-  啟動 server）。
-- **想理解方法論怎麼演進** → 依 `eval/` → `Sixhuang/` → `ablation_experiment/` →
-  `benchmark_suite/` → `TC-STR_and_OminDoc/` 的順序讀各目錄 README。
-- **想自己重跑** → 每個目錄的 README 都有完整的環境需求與指令。最容易重現的是
-  [`ablation_experiment/`](ablation_experiment/)（只需要 Ollama + 一個模型 + TC-STR）。
-- **想知道跑在什麼機器上／想自己開一台** → [INFRASTRUCTURE.md](INFRASTRUCTURE.md)。
-- **想知道要花多少錢、需要多大的卡** → [HARDWARE.md](HARDWARE.md)。含顯存試算、
-  AWS 機型與成本、七套工作站實際報價，以及機房用電與電費分攤的處理方式。
-- **想接手或參與** → [ROADMAP.md](ROADMAP.md)。做了什麼、沒做什麼、你可以從哪裡開始。
-- **想認識做這件事的人** → [CONTRIBUTORS.md](CONTRIBUTORS.md)。
-- **想接續研究** → 見下方〈後續方向〉。
+| 目的 | 建議起點 |
+|---|---|
+| 掌握結論 | 本頁〈核心發現〉，續讀 [`ablation_experiment/RESULTS.md`](ablation_experiment/RESULTS.md) |
+| 檢視逐題證據 | 以瀏覽器開啟 [`ablation_report.html`](ablation_experiment/results/ablation_report.html) 與 [`report.html`](eval/results/report.html)，兩者均為自包含檔案，無須啟動 server |
+| 理解方法論的演進 | 依 `eval/` → `Sixhuang/` → `ablation_experiment/` → `benchmark_suite/` → `TC-STR_and_OminDoc/` 的順序閱讀各目錄 README |
+| 自行重現實驗 | 各目錄 README 均載有環境需求與指令；最易重現者為 [`ablation_experiment/`](ablation_experiment/)，僅需 Ollama、單一模型與 TC-STR |
+| 了解執行環境 | [INFRASTRUCTURE.md](INFRASTRUCTURE.md) |
+| 估算硬體與成本 | [HARDWARE.md](HARDWARE.md)，含顯存試算、AWS 機型與成本、七套工作站報價，以及機房用電與電費分攤方式 |
+| 接手或參與 | [ROADMAP.md](ROADMAP.md) |
+| 認識研究團隊 | [CONTRIBUTORS.md](CONTRIBUTORS.md) |
 
 ---
 
-## 這只是計畫的一半
+## 計畫的另一半：未執行的研究路線
 
-這個實習計畫原本規劃了**兩條並行的研究路線**：
+本實習計畫原先規劃兩條並行的研究路線：
 
-| | **路線 A（本 repo）** | **路線 B** |
+| | 路線 A（即本專案） | 路線 B |
 |---|---|---|
-| 題目 | 開源 VLM 的繁中 OCR／文件解析**評測** | Gemma 4 台灣領域**微調** |
-| 使用的尺 | TC-STR、OmniDocBench、VisTW-MCQ | TMMLU+、TMLU、TC-Eval |
-| 狀態 | ✅ **完成** | 📋 **僅完成規劃，未執行** |
+| 題目 | 開源 VLM 的繁中 OCR 與文件解析**評測** | Gemma 4 台灣領域**微調** |
+| 採用的基準 | TC-STR、OmniDocBench、VisTW-MCQ | TMMLU+、TMLU、TC-Eval |
+| 狀態 | 已完成 | 僅完成規劃，未執行 |
 
-兩條路線是互補的：**你得先能公平地量，才有資格說微調有沒有效。** 路線 A 的核心發現
-正好說明了路線 B 為什麼困難——如果連 baseline 都測不準，「微調後進步了 3%」就沒有意義。
+兩條路線互為前提：唯有先能公平地量測，才有資格判斷微調是否有效。路線 A 的核心發現
+恰可說明路線 B 的困難所在：baseline 若無法測準，「微調後進步 3%」一語便失去意義。
 
-路線 B 最後沒有人執行，但**規劃文件相當完整**：8 週路線圖、逐行可照跑的 Phase 0
-runbook、雲端從開機到關機的完整指令。我們把它整理出來公開，而不是留在內部硬碟裡。
+路線 B 最終無人執行，惟規劃文件相當完整，包含 8 週路線圖、可逐行照跑的 Phase 0
+runbook，以及雲端自開機至關機的完整指令。與其留存於內部硬碟，不如一併整理公開。
 
-**這條路線現在是空的，歡迎接手** → [ROADMAP.md](ROADMAP.md)
+該路線目前仍為空白，歡迎接手，詳見 [ROADMAP.md](ROADMAP.md)。
 
-### 路線 A 還沒做完的部分
+### 路線 A 尚未完成的部分
 
-依價值排序。**前兩項只需要跑，程式都已經寫完了：**
+依價值排序如下。前兩項僅需執行，程式均已完成：
 
-1. **跑完 [`benchmark_suite/`](benchmark_suite/) 的 15 組正式結果。** 系統已完成可執行，
-   `runs/` 目前是空的。投入產出比最高的一項。
-2. **跑完 [`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/)。** 8 模型 TC-STR、OmniDocBench
-   全量 1,651 頁。
-3. **`repeat_penalty` 細部 sweep。** 消融只證明「1.6 明顯有害」，尚未定位最佳值。
-4. **測試變因之間的交互作用。** OFAT 無法捕捉交互作用，而 prompt × 後處理、
-   `num_predict` × 後處理都有理由懷疑存在。
-5. **把消融結論在其他模型上驗證。** 目前只在 GLM-OCR Q8 上成立，Gemma 4 與 Qwen3-VL
-   是否有同樣的參數敏感性仍是開放問題。
+1. **執行 [`benchmark_suite/`](benchmark_suite/) 的 15 組正式結果。** 系統已可運作，
+   `runs/` 目前為空，投入產出比最高。
+2. **執行 [`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/)。** 涵蓋 8 模型 TC-STR 與
+   OmniDocBench 全量 1,651 頁。
+3. **`repeat_penalty` 的細部 sweep。** 消融實驗僅證明 1.6 明顯有害，尚未定位最佳值。
+4. **檢驗變因之間的交互作用。** OFAT 無法捕捉交互作用，而 prompt 與後處理、
+   `num_predict` 與後處理之間均有理由懷疑存在交互作用。
+5. **於其他模型上驗證消融結論。** 目前結論僅在 GLM-OCR Q8 上成立，Gemma 4 與
+   Qwen3-VL 是否具有同樣的參數敏感性，仍屬開放問題。
 
-完整的待辦清單、接手指引與**依投入程度分級的參與方式**（從十分鐘到兩個月），
-見 [ROADMAP.md](ROADMAP.md#五如何參與)。
+完整待辦清單、接手指引，以及依投入程度分級的參與方式（自十分鐘至兩個月），見
+[ROADMAP.md](ROADMAP.md#五如何參與)。
 
 ---
 
 ## 研究團隊
 
-三位實習生參與，**沒有一位是資訊工程背景**——分別讀人類學、圖書資訊學與地質學。
-這不是註腳，它直接解釋了這個計畫為什麼長成現在的樣子。
+三位實習生參與本計畫，均非資訊工程背景，分別就讀人類學、圖書資訊學與地質學。學科背景
+的差異，相當程度說明了本計畫最終呈現的樣貌。
 
-| | 背景 | 在這個計畫負責什麼 |
+| | 背景 | 負責範圍 |
 |---|---|---|
-| **游聿堂**<br>[@trickster-2005](https://github.com/trickster-2005) | 臺大人類學系，語言學／計算語言學，中研院 Depositar Lab 開放資料實習 | [`eval/`](eval/) — 最早的評測 pipeline、後處理設計、四指標實作、HTML 報告 |
-| **黃以信**<br>[@hyslchs](https://github.com/hyslchs) | 輔大圖書資訊學系，語意檢索與向量資料庫，NSTC 大專生研究計畫 | [`Sixhuang/`](Sixhuang/)、[`ablation_experiment/`](ablation_experiment/)、[`benchmark_suite/`](benchmark_suite/)、[`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/) |
-| **林柏儒** | 臺大地質系，GenAI 落地與本地模型部署、自動化工作流 | 計畫前期的硬體評估與詢價 — [HARDWARE.md](HARDWARE.md) |
+| **游聿堂**<br>[@trickster-2005](https://github.com/trickster-2005) | 臺大人類學系，語言學與計算語言學，中研院 Depositar Lab 開放資料實習 | [`eval/`](eval/)：最早的評測流程、後處理設計、四項指標實作與 HTML 報告 |
+| **黃以信**<br>[@hyslchs](https://github.com/hyslchs) | 輔大圖書資訊學系，語意檢索與向量資料庫，NSTC 大專學生研究計畫 | [`Sixhuang/`](Sixhuang/)、[`ablation_experiment/`](ablation_experiment/)、[`benchmark_suite/`](benchmark_suite/)、[`TC-STR_and_OminDoc/`](TC-STR_and_OminDoc/) |
+| **林柏儒** | 臺大地質系，GenAI 落地與本地模型部署、自動化工作流 | 計畫前期的硬體評估與詢價，成果見 [HARDWARE.md](HARDWARE.md) |
 
-AI 評測領域長期缺兩樣東西：**對「測量本身如何被建構」的懷疑**，以及**對「來源與版本」
-的紀律**。這恰好分別是人類學／開放資料治理，與圖書資訊學的核心訓練。
+AI 評測領域長期欠缺兩項素養：對「測量如何被建構」的懷疑，以及對「來源與版本」的紀律。
+兩者恰分別屬於人類學與開放資料治理，以及圖書資訊學的核心訓練。
 
-**游聿堂帶進了前者。** 他寫下的〈為什麼跟別人的結果可能不一樣〉一節，把六個可能原因
-依影響程度排序、並提出可操作的診斷方法——不問「分數是多少」，問「這個測量是怎麼被
-建構出來的」。三週後 18,530 次推論的消融實驗證實了他的排序判斷正確。
+游聿堂承擔了前者。他在 `eval/README.md` 寫下的〈為什麼跟別人的結果可能不一樣〉一節，
+將六項可能原因依影響程度排序，並提出可操作的診斷方法，關切的是測量如何被建構，而非
+分數的高低。三週之後，以 18,530 次推論完成的消融實驗證實了他的排序判斷正確。
 
-**黃以信帶進了後者。** 他建的兩套系統核心不是跑分，是**來源追溯**：每個分數都要能追回
-到確切的 model digest、dataset fingerprint、prompt hash 與 evaluator commit，例外要具名
-核准、第三方量化版本的來源要逐一存證。這在圖資學裡有名字：編目、權威控制、provenance。
+黃以信承擔了後者。他所建立的兩套系統，核心在於來源追溯：每一項分數均須能回溯至確切的
+model digest、dataset fingerprint、prompt hash 與 evaluator commit，例外須具名核准，
+第三方量化版本的來源亦須逐一存證。相關作法在圖書資訊學之中自有名稱，即編目、權威控制
+與來源證明。
 
-**林柏儒帶進的是落地的成本感。** 他實際在本地跑過開源模型，知道顯存不夠會發生什麼事，
-所以由他去試算顯存需求、比較七套機型、向廠商實際詢價。OCF 最後沒有依那份規格採購，
-但那份評估提供了議價與判斷的基準——也成為
-[HARDWARE.md](HARDWARE.md) 這份對其他非營利組織實用的公開參考。
+林柏儒承擔的是落地的成本評估。他有實際在本地執行開源模型的經驗，清楚顯存不足時的後果，
+因而由他試算顯存需求、比較七套機型並向廠商實際詢價。OCF 最終未依該份規格採購，惟評估
+本身提供了議價與判斷的基準，並整理為 [HARDWARE.md](HARDWARE.md)，可供其他非營利組織
+參考。
 
 完整背景、逐項產出、工作紀錄與可驗證的工作量統計，見
-**[CONTRIBUTORS.md](CONTRIBUTORS.md)**。
+[CONTRIBUTORS.md](CONTRIBUTORS.md)。
 
-兩人的工作原本分別在 `main` 與 `Sixhuang` 分支上進行，已於 2026-08-19 透過
-[PR #1](https://github.com/ocftw/2026-OCF-Intern/pull/1) 合併。**`main` 目前包含全部
-研究成果**；`Sixhuang` 分支僅作為歷史紀錄保留，內容與 `main` 完全一致。
+兩位實習生的工作原先分別在 `main` 與 `Sixhuang` 分支進行，已於 2026 年 8 月 19 日透過
+[PR #1](https://github.com/ocftw/2026-OCF-Intern/pull/1) 合併。`main` 目前包含全部研究
+成果，`Sixhuang` 分支僅作為歷史紀錄保留，內容與 `main` 完全一致。
 
 ---
 
 ## 授權與使用限制
 
-本 repo 的**程式碼**由 OCF 2026 AI 暑期實習計畫產出。**資料集與模型不隨 repo 散布**，
-使用者必須自行向上游取得並遵守各自的授權條款。特別注意：
+本專案的程式碼由 OCF 2026 AI 暑期實習計畫產出。資料集與模型不隨專案散布，使用者須自行
+向上游取得，並遵守各自的授權條款。以下數項尤須留意：
 
-- **OmniDocBench** 官方聲明資料僅供研究使用、不可商用。
-- **TC-STR** 的 repository 是 Apache-2.0，但下載的資料仍應依來源條款使用。
+- **OmniDocBench** 官方聲明資料僅供研究使用，不得商業利用。
+- **TC-STR** 的 repository 採 Apache-2.0 授權，惟所下載的資料仍應依來源條款使用。
 - **VisTW** 的 dataset card 與 evaluation repository 未給出足夠明確的資料授權，正式
-  下載與發表前應向資料提供者確認。
+  下載與發表之前應向資料提供者確認。
 - **第三方 GGUF 量化版本**（`mradermacher`、`haervwe` 等社群發布）的再散布與使用條款
-  必須逐一確認，不能假設等同於原始模型的授權。
+  須逐一確認，不得逕自假設等同於原始模型的授權。
 
-評測數字的引用請務必連同執行條件一起引用——這正是本研究最主要的結論。
+引用評測數字時，務請一併引用其執行條件，此亦為本研究最主要的結論。

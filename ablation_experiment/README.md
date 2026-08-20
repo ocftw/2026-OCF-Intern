@@ -1,24 +1,26 @@
-> **成果定位**｜★ 第 3 階段・**本 repo 最重要的成果**｜作者 [@hyslchs](https://github.com/hyslchs)｜2026-07-21
+> **階段定位**：第三階段，**本專案最重要的成果**｜作者 [@hyslchs](https://github.com/hyslchs)｜2026-07-21
 >
-> 這裡回答了 [`../eval/`](../eval/) 提出的核心問題：同一個模型、同一份資料，為什麼
-> 不同人跑出的分數差這麼多？做法是把兩套獨立流程（`../eval/` 與 `../Sixhuang/`）
-> 對齊成共同 baseline，然後每次**只改一項設定**，量測該變因的主效應。
+> 本目錄回答了 [`../eval/`](../eval/) 所提出的核心問題：同一模型與同一份資料，何以不同人
+> 執行所得分數差異顯著。作法為將兩套獨立流程（`../eval/` 與 `../Sixhuang/`）對齊為共同
+> baseline，其後每次僅更動一項設定，以量測該變因的主效應。
 >
-> **規模**：GLM-OCR Q8_0 × TC-STR 3,706 筆 × 7 組 variant，其中 5 組需要推論，
-> 合計 **18,530 次 Ollama request**，全部完成、API error 數為 0。
+> **規模**：GLM-OCR Q8_0 搭配 TC-STR 3,706 筆資料，共 7 組 variant，其中 5 組需要推論，
+> 合計 18,530 次 Ollama request，全數完成且 API error 數為 0。
 >
-> **最重要的三個數字**：
-> - 不指定 `repeat_penalty=1.6` → **EM 47.06% → 64.84%（+17.78 pp）**，淨增 659 題全對
-> - 換成短 prompt → **EM/ANLS 歸零，但 CM 反而升到 79.06%**（字認出來了，格式失控）
-> - `/api/generate` vs `/api/chat` → **3,706/3,706 逐字相同**，指標完全一致
+> **三項主要數據**：
+> - 取消 `repeat_penalty=1.6` 使 EM 自 47.06% 上升至 64.84%，增加 17.78 個百分點，
+>   淨增 659 題完全正確
+> - 改用短 prompt 使 EM 與 ANLS 歸零，惟 CM 反而升至 79.06%，顯示文字已辨識而輸出格式
+>   失控
+> - `/api/generate` 與 `/api/chat` 的 3,706 筆 prediction 逐字相同，四項指標亦無變化
 >
-> **結果數據**：✅ 完整保存在 [`results/`](results/)。逐筆 CSV（約 17 MB）未進版控，
-> 但 [`results/dataset_manifest.json`](results/dataset_manifest.json) 記錄了 3,706 張
-> 圖片的順序、ground truth 與 SHA-256，重跑可得到等價輸出。
+> **結果數據**：完整保存於 [`results/`](results/)。逐筆 CSV 約 17 MB，未進版控，惟
+> [`results/dataset_manifest.json`](results/dataset_manifest.json) 記錄 3,706 張圖片的
+> 順序、ground truth 與 SHA-256，重新執行可得等價輸出。
 >
-> 這些發現直接決定了後續 [`../benchmark_suite/`](../benchmark_suite/) 與
+> 上述發現直接決定了後續 [`../benchmark_suite/`](../benchmark_suite/) 與
 > [`../TC-STR_and_OminDoc/`](../TC-STR_and_OminDoc/) 的設計。完整脈絡見
-> [repo 根目錄 README](../README.md)。
+> [根目錄 README](../README.md)。
 
 ---
 

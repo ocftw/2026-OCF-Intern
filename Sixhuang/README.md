@@ -1,19 +1,17 @@
-> **成果定位**｜第 2 階段・對照組｜作者 [@hyslchs](https://github.com/hyslchs)｜2026-07-16
+> **階段定位**：第二階段，對照組｜作者 [@hyslchs](https://github.com/hyslchs)｜2026-07-16
 >
-> 這是與 [`../eval/`](../eval/) **各自獨立實作**的第二套 TC-STR 跑分程式，另外納入
-> Hugging Face 繁中合成資料集。它的價值不只在於多跑了一組數字——正因為兩套流程是
-> 獨立寫的，它們在三個地方出現了差異：**短 prompt**、**最小後處理**、**不同的
-> scorer 定義**（忽略標點空白、CM 採雙向判定）。
+> 本目錄為與 [`../eval/`](../eval/) 各自獨立實作的第二套 TC-STR 跑分程式，另納入 Hugging
+> Face 繁中合成資料集。其價值不僅在於增加一組數字：正因兩套流程係獨立撰寫，於三處出現
+> 差異，即短 prompt、最小後處理，以及不同的 scorer 定義（忽略標點空白、CM 採雙向判定）。
 >
-> 這三項差異後來被直接當成 [`../ablation_experiment/`](../ablation_experiment/) 的
-> 三個受測變因，量化出各自對分數的影響。所以這個目錄實際上是消融實驗的「另一個
-> 端點」，兩者要對照著看。
+> 上述三項差異後續直接作為 [`../ablation_experiment/`](../ablation_experiment/) 的受測
+> 變因，並量化各自對分數的影響。本目錄實為消融實驗的另一個端點，兩者宜對照閱讀。
 >
-> **結果數據**：未進版控（`results/` 在 `.gitignore` 中），需依下方步驟重跑產生。
-> 若只是想看這套設定的分數影響，直接看消融實驗的
-> [`RESULTS.md`](../ablation_experiment/RESULTS.md) 更快。
+> **結果數據**：未進版控（`results/` 列於 `.gitignore`），須依下方步驟重新執行產生。
+> 若僅欲了解該組設定對分數的影響，逕行參閱消融實驗的
+> [`RESULTS.md`](../ablation_experiment/RESULTS.md) 較為便捷。
 >
-> 完整脈絡見 [repo 根目錄 README](../README.md)。
+> 完整脈絡見[根目錄 README](../README.md)。
 
 ---
 
