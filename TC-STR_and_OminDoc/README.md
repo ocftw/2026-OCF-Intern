@@ -1,3 +1,29 @@
+> **成果定位**｜第 5 階段・規模最大的一套｜作者 [@hyslchs](https://github.com/hyslchs)｜2026-07-30 ～ 08-14
+>
+> ⚠️ **結果數據不在這個 repo 裡。** 正式輸出（checkpoint、raw response、prediction、
+> metadata、評分與報告）保存在執行主機 AWS EC2 的 EBS 持久磁碟上，未隨 repo 散布。
+> 本目錄交付的是完整的**可重現執行工具**——所有版本、digest 與設定都已釘死，重跑
+> 可得到等價輸出。
+>
+> **兩套評測**：
+> - [`TC_STR/`](./TC_STR/)：繁中短文字辨識，TC-STR test split 3,706 張，**8 個模型**
+>   （Gemma 4 五種尺寸、GLM-OCR BF16、GLM-4.6V-Flash 9B、Kimi-VL-A3B）
+> - [`OminDocBench/`](./OminDocBench/)：整頁文件解析，OmniDocBench v1.6 **全量 1,651
+>   頁**，用釘死版本的**官方 Docker evaluator** 計分（不自製近似分數）。主設定 2 個
+>   模型，`config_variants/` 另有 7 個（Gemma 4 E4B/12B/31B、Qwen3-VL 4B/32B、
+>   InternVL3.5 4B/38B）
+>
+> **值得注意的方法論細節**：官方指標與自製診斷指標嚴格分區（EM/CM/ANLS/F1 明確標為
+> 「非 OmniDocBench 官方 leaderboard 指標」）；模型自己造成的失敗照樣計分、只標
+> anomaly；protocol 例外（如 GLM OCR BF16 的 `done=false` 問題）明文記錄在
+> [`TC_STR/PROTOCOL_EXCEPTIONS.md`](./TC_STR/PROTOCOL_EXCEPTIONS.md)；第三方 GGUF
+> 量化的來源與風險記錄在
+> [`TC_STR/MODEL_CANDIDATES.md`](./TC_STR/MODEL_CANDIDATES.md)。
+>
+> 完整脈絡見 [repo 根目錄 README](../README.md)。
+
+---
+
 # TC-STR 與 OmniDocBench 文件辨識評測
 
 本目錄包含兩套以本機 Ollama 執行視覺語言模型（VLM）的可重現評測工具：

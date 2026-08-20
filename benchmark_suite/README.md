@@ -1,3 +1,25 @@
+> **成果定位**｜第 4 階段・評測基礎建設｜作者 [@hyslchs](https://github.com/hyslchs)｜2026-07-28
+>
+> ⚠️ **這個目錄交付的是「執行系統」，不是結果。** 系統已完成並可執行，但 15 組正式
+> 結果尚未產出——`runs/` 目錄在這個 repo 裡不存在。想接手的人，跑完它是投入產出比
+> 最高的一件事，因為程式已經寫完了。
+>
+> **設計理由**：[`../ablation_experiment/`](../ablation_experiment/) 證明了分數極易被
+> 設定影響，所以這套系統把「設定」變成身分識別的一部分——resume key 包含 config
+> hash、實際 model digest、dataset revision、prompt hash 與 dependency lock SHA256，
+> 任何一項改變都會開啟新的 run，不會把不同條件的結果混進同一份輸出。
+>
+> 下方〈固定推論設定〉一節選用 `repeat_penalty=1.0`，正是承接消融實驗的實證
+> （1.6 明顯有害）；但文中也誠實註明這是為了公平與可重現而選的**控制值**，並非已
+> 證明的最佳值。
+>
+> **規模**：5 個模型 × 3 個 benchmark（OmniDocBench／TC-STR／VisTW-MCQ）= 15 組正式
+> 結果，append-only 斷點續跑、可長時間無人值守。
+>
+> 完整脈絡見 [repo 根目錄 README](../README.md)。
+
+---
+
 # OCF VLM Benchmark Suite
 
 這是一套可長時間無人值守、append-only 斷點續跑的 VLM 評測系統。它以固定順序讓
