@@ -3,11 +3,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       
-      <link rel="stylesheet" href="file:///c:\Users\user\.vscode\extensions\shd101wyy.markdown-preview-enhanced-0.8.30\crossnote\dependencies\katex\katex.min.css">
-      
-      
-      
-      <script type="text/javascript" src="file:///c:\Users\user\.vscode\extensions\shd101wyy.markdown-preview-enhanced-0.8.30\crossnote\dependencies\mermaid\mermaid.min.js" charset="UTF-8"></script>
+      <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js" charset="UTF-8"></script>
       
       
       
@@ -28,7 +24,10 @@
     </head>
     <body for="html-export">
       <div class="crossnote markdown-preview  ">
-      
+
+<div style="background:#fff3cd;border:1px solid #f0ad4e;border-left:6px solid #d9822b;border-radius:6px;padding:1rem 1.25rem;margin-bottom:1.5rem;font-size:15px;line-height:1.6;">
+⚠️ <strong>本文件目前為初稿（draft）</strong>，內容、數字與結論仍可能隨後續評測進度修改或修正，<strong>請勿引用、轉載或作為最終結論使用</strong>。如需正式版本或最新數據，請先與作者確認。
+</div>
 <h1 id="tc-str-與-omnidocbench-文件辨識評測筆記">TC-STR 與 OmniDocBench 文件辨識評測筆記 </h1>
 <blockquote>
 <p>來源：<a href="https://github.com/trickster-2005/2026-OCF-Intern">trickster-2005/2026-OCF-Intern</a>，<code>Sixhuang</code> 分支的 <code>TC-STR_and_OminDoc</code> 資料夾。</p>
@@ -49,6 +48,8 @@
 7.2 <a href="#results-omnidocbench">OmniDocBench 全語料庫官方跑分</a><br>
 7.3 <a href="#results-presentation">結果呈現方式</a></li>
 <li><a href="#summary">小結、研究限制與未來展望</a></li>
+<li><a href="#glossary">指標名詞總覽</a></li>
+<li><a href="#acknowledgments">致謝</a></li>
 </ol>
 <p><a id="intro"></a></p>
 <h2 id="1-簡介">1. 簡介 </h2>
@@ -758,6 +759,37 @@
 <li>嘗試單一變量消融實驗（ablation，一次只改一個設定觀察分數變化），釐清 prompt 寫法、生成參數、後處理規則各自對分數的貢獻，而不只是看最終總分。</li>
 <li>把互動式比較報告與本節的靜態圖表整合成同一份可持續更新的 dashboard，新模型跑完就能自動併入比較，不需要每次手動整理表格。</li>
 </ul>
+<p><a id="glossary"></a></p>
+<h2 id="9-指標名詞總覽">9. 指標名詞總覽 </h2>
+<p>本節統一整理全文用到的評分指標定義，方便對照第 5、6、7 章的表格與圖表。TC_STR 的四項是本專案研究用的診斷指標（非官方 leaderboard 規則），OmniDocBench 的五項則是官方釘死版本 evaluator 的定義。</p>
+<h3 id="91-tc-str-診斷指標">9.1 TC_STR 診斷指標（皆為越高越好） </h3>
+<table>
+<thead>
+<tr><th>指標</th><th>全名／定義</th><th>白話解釋</th></tr>
+</thead>
+<tbody>
+<tr><td>EM</td><td>Exact Match</td><td>正規化後的模型輸出與 ground truth（GT，正確答案）完全相同才算對，給 1 分，否則 0 分。是最嚴格的指標。</td></tr>
+<tr><td>CM</td><td>Containment Match</td><td>單向判定「GT 是否完整出現在模型輸出裡」。就算模型輸出夾雜大量雜訊，只要正確答案有「藏」在裡面就算過，因此可能虛高，不能單獨代表 OCR 品質。</td></tr>
+<tr><td>ANLS</td><td>Average Normalized Levenshtein Similarity</td><td><code>1 − LevenshteinDistance(GT, 預測) / max(len(GT), len(預測))</code>；編輯距離（Levenshtein Distance）是把一個字串改成另一個字串最少要修改幾個字。分數低於 0.5 直接計 0 分。</td></tr>
+<tr><td>Character F1</td><td>字元級 F1 分數</td><td>把 GT 與預測都拆成單一字元的集合，計算 precision（預測對的字元占預測全部字元的比例）與 recall（預測對的字元占 GT 全部字元的比例），再取調和平均數。</td></tr>
+</tbody>
+</table>
+<h3 id="92-omnidocbench-官方指標">9.2 OmniDocBench 官方指標 </h3>
+<table>
+<thead>
+<tr><th>指標</th><th>全名／定義</th><th>方向</th><th>白話解釋</th></tr>
+</thead>
+<tbody>
+<tr><td>Text normalized edit distance</td><td>文字正規化編輯距離</td><td>越低越好</td><td>預測文字區塊與 GT 文字區塊之間的正規化 Levenshtein 編輯距離，數字越小代表文字辨識越準確。</td></tr>
+<tr><td>Table TEDS</td><td>Tree Edit Distance based Similarity</td><td>越高越好</td><td>把預測與 GT 的表格都轉成樹狀結構（列、欄、合併儲存格），計算兩棵樹之間的編輯距離相似度，越高代表表格結構辨識越準確。</td></tr>
+<tr><td>Formula CDM</td><td>Character Detection Matching</td><td>越高越好</td><td>不直接比對 LaTeX 文字，而是把 GT 與預測的公式各自用 pdflatex 渲染成圖片，偵測圖片中每個符號的位置，依視覺特徵比對算出 precision／recall 後回報 F1。避免「同一條公式有多種等價寫法」被誤判為不同。</td></tr>
+<tr><td>Reading Order edit distance</td><td>閱讀順序編輯距離</td><td>越低越好</td><td>把預測與 GT 的文字區塊閱讀順序各自轉成序列，計算兩個序列間的編輯距離，越低代表模型排出的閱讀順序跟正確答案越接近。</td></tr>
+<tr><td>Overall</td><td>官方綜合分數</td><td>越高越好</td><td>官方 leaderboard 定義的加權公式：<code>Overall = ((1 − Text normalized edit distance) × 100 + Table TEDS + Formula CDM) ÷ 3</code>，只取這三項，不含 table edit 與 reading order edit。</td></tr>
+</tbody>
+</table>
+<p><a id="acknowledgments"></a></p>
+<h2 id="10-致謝">10. 致謝 </h2>
+<p>感謝 OCF（Open Culture Foundation）實習計畫提供本次評測工作的資源與環境；感謝團隊夥伴在 OmniDocBench 官方 evaluator 卡死問題排查過程中提供的協助與經驗分享，讓 <code>match_workers</code> 參數調整等實作細節得以記錄進本文件（見 6.1 節）；感謝 esun-ai／opendatalab 等上游資料集與官方評測程式碼的開源釋出，使本專案的可重現評測得以進行。文件內容如有錯誤或疏漏，歡迎指正。</p>
 
       </div>
       
